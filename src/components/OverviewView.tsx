@@ -4,8 +4,9 @@ import { bomTotals, computeBom } from "../domain/bom";
 import { freeModules, panelCapacity } from "../domain/panel";
 import type { Panel } from "../domain/types";
 import { type View, useStore } from "../store/store";
+import { useUi } from "../store/ui";
 import { DeviceArt } from "./DeviceArt";
-import { IconArrowRight, IconPanel, IconPlus, IconWand } from "./icons";
+import { IconArrowRight, IconCamera, IconPanel, IconPlus, IconWand } from "./icons";
 import { Badge, ScoreRing, complianceScore, euro } from "./ui";
 
 export function OverviewView({ onNavigate }: { onNavigate: (v: View) => void }) {
@@ -27,12 +28,14 @@ export function OverviewView({ onNavigate }: { onNavigate: (v: View) => void }) 
   const targetIssues = target ? target.findings.filter((f) => f.severity === "danger" || f.severity === "nonconforme") : [];
   const described = existing ? existing.panel.rows.flat().length > 0 && !existing.findings.some((f) => f.ruleId === "circuit-non-decrit") : false;
 
-  const steps: { title: string; text: string; done: boolean; action: string; run: () => void }[] = [
+  const steps: { title: string; text: string; done: boolean; action: string; run: () => void; alt?: { label: string; run: () => void } }[] = [
     {
       title: "Renseigner la maison",
-      text: "Surface, abonnement, mesure de terre et exposition à la foudre.",
-      done: project.house.earthOhms !== undefined,
-      action: "Compléter",
+      text: project.house.validatedAt
+        ? `Enregistré${project.house.earthOhms === undefined ? " · pensez à faire mesurer la terre" : ""}.`
+        : "Surface, abonnement, mesure de terre et exposition à la foudre, puis « Valider ».",
+      done: !!project.house.validatedAt,
+      action: project.house.validatedAt ? "Modifier" : "Compléter",
       run: () => onNavigate("house"),
     },
     {
@@ -41,6 +44,7 @@ export function OverviewView({ onNavigate }: { onNavigate: (v: View) => void }) 
       done: described,
       action: existing ? "Ouvrir" : "Créer",
       run: () => (existing ? openPanel(existing.panel.id) : addPanel("existing")),
+      alt: { label: "Depuis une photo", run: () => useUi.getState().openPhoto() },
     },
     {
       title: "Générer le tableau conforme",
@@ -51,8 +55,8 @@ export function OverviewView({ onNavigate }: { onNavigate: (v: View) => void }) 
     },
     {
       title: "Préparer les achats",
-      text: "Réemploi de l'existant, quantités possédées et liste d'achat chiffrée.",
-      done: !!target && Object.keys(project.inventory).length > 0,
+      text: target ? `${bom.filter((l) => l.toBuy > 0 && project.inventory[l.key]?.bought).length} article(s) acheté(s) sur ${bom.filter((l) => l.toBuy > 0).length} à acheter.` : "Réemploi de l'existant, quantités possédées et liste d'achat chiffrée.",
+      done: !!target && bom.filter((l) => l.toBuy > 0).every((l) => project.inventory[l.key]?.bought),
       action: "Voir le matériel",
       run: () => onNavigate("materials"),
     },
@@ -129,9 +133,16 @@ export function OverviewView({ onNavigate }: { onNavigate: (v: View) => void }) 
                   <b>{s.title}</b>
                   <p>{s.text}</p>
                 </div>
-                <button type="button" className={`btn btn-sm${i === current ? " btn-primary" : ""}`} onClick={s.run}>
-                  {s.action}
-                </button>
+                <div className="row" style={{ justifyContent: "flex-end", gap: 6 }}>
+                  {s.alt && !s.done && (
+                    <button type="button" className="btn btn-sm btn-ghost" onClick={s.alt.run}>
+                      <IconCamera size={14} /> {s.alt.label}
+                    </button>
+                  )}
+                  <button type="button" className={`btn btn-sm${i === current ? " btn-primary" : ""}`} onClick={s.run}>
+                    {s.action}
+                  </button>
+                </div>
               </div>
             ))}
           </div>

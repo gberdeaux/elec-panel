@@ -4,9 +4,9 @@ import type { CatalogItem } from "../domain/catalog";
 import { type GenerateOptions, generateCompliantPanel, rebrandPanel } from "../domain/generator";
 import { findDevice, newId } from "../domain/panel";
 import { emptyPanel, sampleProject } from "../domain/sample";
-import type { Brand, ChatTurn, Device, Enclosure, House, InventoryEntry, Panel, PanelRole, Project } from "../domain/types";
+import { type Brand, type ChatTurn, DEFAULT_LABEL_SETTINGS, type Device, type Enclosure, type House, type InventoryEntry, type LabelSettings, type Panel, type PanelRole, type Project } from "../domain/types";
 
-export type View = "overview" | "house" | "panel" | "compare" | "analysis" | "materials" | "assistant";
+export type View = "overview" | "house" | "panel" | "compare" | "labels" | "analysis" | "materials" | "assistant";
 
 interface State {
   project: Project;
@@ -50,6 +50,7 @@ interface State {
   addCustomItem(item: Omit<CatalogItem, "id" | "custom">): string;
 
   setChat(chat: ChatTurn[]): void;
+  setLabelSettings(patch: Partial<LabelSettings>): void;
 }
 
 const HISTORY_LIMIT = 60;
@@ -295,6 +296,10 @@ export const useStore = create<State>((set, get) => {
       return id;
     },
 
+    setLabelSettings: (patch) =>
+      commit((d) => {
+        d.labelSettings = { ...DEFAULT_LABEL_SETTINGS, ...d.labelSettings, ...patch };
+      }, `labels:${Object.keys(patch).join()}`),
     setChat: (chat) =>
       quiet((d) => {
         d.chat = chat;

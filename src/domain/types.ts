@@ -75,6 +75,10 @@ export interface Device {
   rcdType?: RcdType;
   sensitivity?: number; // mA
   label?: string;
+  /** Pictogramme choisi pour l'étiquette (sinon déduit de l'usage). */
+  labelIcon?: string;
+  /** Gamme commerciale quand elle change l'aspect (ex. « D'clic » chez Schneider). */
+  series?: string;
   condition?: Condition;
   /** Id du différentiel qui protège ce départ. undefined = automatique (différentiel à gauche dans la rangée). null = aucun. */
   protectedBy?: string | null;
@@ -128,6 +132,8 @@ export interface House {
   sensitiveEquipment: boolean;
   hasKitchenOver4m2: boolean;
   department?: string;
+  /** Date du dernier enregistrement explicite des informations de la maison. */
+  validatedAt?: number;
 }
 
 export interface InventoryEntry {
@@ -157,6 +163,7 @@ export interface Project {
   allowCrossBrandReuse: boolean;
   catalogOverrides: Record<string, { ref?: string; price?: number }>;
   customCatalog: import("./catalog").CatalogItem[];
+  labelSettings?: LabelSettings;
   chat: ChatTurn[];
 }
 
@@ -177,3 +184,21 @@ export interface Finding {
   fix: string;
   deviceIds: string[];
 }
+
+export interface LabelSettings {
+  /** Largeur d'un module en mm (17,5 mm pour la plupart des coffrets, 18 mm pour certains). */
+  moduleMm: number;
+  /** Hauteur de l'étiquette en mm. */
+  heightMm: number;
+  showIcons: boolean;
+  showRefs: boolean;
+  lineColor: string;
+}
+
+export const DEFAULT_LABEL_SETTINGS: LabelSettings = {
+  moduleMm: 17.5,
+  heightMm: 30,
+  showIcons: true,
+  showRefs: false,
+  lineColor: "#d0102b",
+};

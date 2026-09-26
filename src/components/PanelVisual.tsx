@@ -2,9 +2,11 @@ import { type CSSProperties, type DragEvent, type RefObject, useEffect, useMemo,
 import { findingsForDevice, worstSeverity } from "../domain/analysis";
 import { USAGES } from "../domain/norm";
 import { deviceTitle, isCircuitDevice, isHighSensitivity, protectionMap, repereMap, rowModules } from "../domain/panel";
-import type { Device, Finding, Panel } from "../domain/types";
+import { DEFAULT_LABEL_SETTINGS, type Device, type Finding, type Panel } from "../domain/types";
+import { useStore } from "../store/store";
+import { LabelStrip } from "./Labels";
 import { DEVICE_H, DeviceArt, MODULE_MM, NOSE_H, NOSE_Y, skinOf } from "./DeviceArt";
-import { IconPlus, Picto } from "./icons";
+import { IconPlus } from "./icons";
 
 export type PanelViewMode = "front" | "open";
 
@@ -14,7 +16,7 @@ export const ROW_PITCH_MM = 125;
 const ROW_TOP_MM = (ROW_PITCH_MM - DEVICE_H) / 2;
 /** Position du nez de l'appareil (partie visible capot fermé) dans la rangée. */
 const NOSE_TOP_MM = ROW_TOP_MM + NOSE_Y;
-const LABEL_H_MM = 11;
+
 
 export const DRAG_DEVICE = "application/x-qc-device";
 export const DRAG_CATALOG = "application/x-qc-catalog";
@@ -70,18 +72,11 @@ function labelText(d: Device): string {
   return deviceTitle(d);
 }
 
-function pictoFor(d: Device) {
-  if (d.circuit) return d.circuit.usage;
-  if (d.kind === "rcd" || d.kind === "rcbo") return "rcd" as const;
-  if (d.kind === "spd") return "spd" as const;
-  if (d.kind === "contactor" || d.kind === "timer" || d.kind === "teleruptor") return "contactor" as const;
-  return "generic" as const;
-}
 
 export function PanelVisual({ panel, findings, mode, selectedId, readOnly, maxScale = 2.5, onSelect, onAdd, onMove, onInsert }: Props) {
   const guards = useMemo(() => protectionMap(panel), [panel]);
-  const colors = useMemo(() => rcdColors(panel), [panel]);
   const reperes = useMemo(() => repereMap(panel), [panel]);
+  const labels = useStore((st) => st.project.labelSettings) ?? DEFAULT_LABEL_SETTINGS;
   const [dragId, setDragId] = useState<string>();
   const [drop, setDrop] = useState<{ row: number; index: number }>();
 
@@ -99,7 +94,9 @@ export function PanelVisual({ panel, findings, mode, selectedId, readOnly, maxSc
     "--pitch": `${ROW_PITCH_MM * scale}px`,
     "--row-top": `${ROW_TOP_MM * scale}px`,
     "--nose-top": `${NOSE_TOP_MM * scale}px`,
-    "--label-h": `${Math.max(24, LABEL_H_MM * scale)}px`,
+    "--label-h": `${labels.heightMm * scale}px`,
+    "--holder-pad": `${1.8 * scale}px`,
+    "--holder-gap": `${6 * scale}px`,
     "--s": scale,
   } as CSSProperties;
 
@@ -188,29 +185,19 @@ export function PanelVisual({ panel, findings, mode, selectedId, readOnly, maxSc
             return (
               <div className="prow" key={r} data-over={over}>
                 {mode === "front" && (
-                  <div className="label-holder" aria-hidden="true">
-                    <span className="label-tab" />
+                  <div className="label-holder">
+                    <span className="label-tab" aria-hidden="true" />
                     <div className="label-paper">
-                      {row.map((d) => {
-                        const guard = guards.get(d.id);
-                        const color = d.kind === "rcd" || d.kind === "rcbo" ? colors.get(d.id) : guard ? colors.get(guard.id) : undefined;
-                        const unprotected = isCircuitDevice(d) && (!guard || !isHighSensitivity(guard));
-                        return (
-                          <span
-                            key={d.id}
-                            className="label-cell"
-                            data-selected={selectedId === d.id}
-                            style={{ width: d.modules * mod, ["--grp" as string]: unprotected ? "#d33a2f" : color ?? "transparent" }}
-                            title={`${reperes.get(d.id) ?? ""} · ${labelText(d)}`}
-                          >
-                            <span className="label-top">
-                              <Picto kind={pictoFor(d)} size={Math.max(9, Math.min(13, scale * 5.2))} />
-                              <span className="label-ref">{reperes.get(d.id)}</span>
-                            </span>
-                            <span className="label-text">{labelText(d)}</span>
-                          </span>
-                        );
-                      })}
+                      <LabelStrip
+                        row={row}
+                        modules={mpr}
+                        settings={labels}
+                        moduleMm={MODULE_MM}
+                        reperes={reperes}
+                        pxWidth={mpr * mod}
+                        selectedId={selectedId}
+                        onSelect={readOnly && !onSelect ? undefined : (id) => onSelect?.(id)}
+                      />
                     </div>
                   </div>
                 )}

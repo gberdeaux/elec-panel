@@ -1,6 +1,5 @@
 /** Icônes d'interface (trait 1,75 px, grille 24) et pictogrammes des porte-étiquettes. */
 import type { ReactNode, SVGProps } from "react";
-import type { CircuitUsage } from "../domain/types";
 
 type IconProps = SVGProps<SVGSVGElement> & { size?: number };
 
@@ -143,6 +142,12 @@ export const IconAlert = make(
     <path d="M12 10v4.5M12 17.2v.3" />
   </>,
 );
+export const IconTag = make(
+  <>
+    <path d="M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9-9-9Z" />
+    <circle cx="8" cy="8" r="1.6" />
+  </>,
+);
 export const IconCheck = make(<path d="m5 12.5 4.5 4.5L19 7.5" />);
 export const IconInfo = make(
   <>
@@ -195,7 +200,7 @@ export const IconGrip = make(
 
 /* ---------- Pictogrammes des porte-étiquettes (grille 12, trait 1) ---------- */
 
-const PICTOS: Record<CircuitUsage | "rcd" | "spd" | "contactor" | "generic", ReactNode> = {
+const PICTOS: Record<string, ReactNode> = {
   eclairage: (
     <>
       <path d="M4.2 7.2a3 3 0 1 1 3.6 0V8.5H4.2V7.2Z" />
@@ -339,9 +344,105 @@ const PICTOS: Record<CircuitUsage | "rcd" | "spd" | "contactor" | "generic", Rea
     </>
   ),
   generic: <rect x="2.5" y="2.5" width="7" height="7" rx="1" />,
+  teleruptor: (
+    <>
+      <path d="M6 1.5v9M4 3.5 6 1.5l2 2M4 8.5l2 2 2-2" />
+    </>
+  ),
+  chaudiere: (
+    <>
+      <rect x="2.5" y="1.5" width="7" height="9" rx="1" />
+      <path d="M6 4.2c-1 1.3-1.4 2-1.4 2.7a1.4 1.4 0 0 0 2.8 0c0-.7-.4-1.4-1.4-2.7Z" />
+      <path d="M4 9h4" />
+    </>
+  ),
+  sdb: (
+    <>
+      <path d="M1.5 6.5h9v1.5a2.5 2.5 0 0 1-2.5 2.5H4A2.5 2.5 0 0 1 1.5 8V6.5Z" />
+      <path d="M3 6.5V3a1.5 1.5 0 0 1 3 0" />
+      <path d="M3.5 10.5l-.5 1M8.5 10.5l.5 1" />
+    </>
+  ),
+  garage: (
+    <>
+      <path d="M1.5 5 6 1.8 10.5 5v5.5h-9V5Z" />
+      <path d="M3.3 10.5V6.5h5.4v4M3.3 8h5.4M3.3 9.3h5.4" />
+    </>
+  ),
+  tv: (
+    <>
+      <rect x="1.5" y="2" width="9" height="6.2" rx=".8" />
+      <path d="M4 10.3h4M6 8.2v2.1" />
+    </>
+  ),
+  eau: <path d="M6 1.8C4 4.5 3 6 3 7.3a3 3 0 0 0 6 0C9 6 8 4.5 6 1.8Z" />,
+  poele: (
+    <>
+      <path d="M6 1.5c.3 1.6 2.5 2.6 2.5 5a2.5 2.5 0 0 1-5 0c0-1.2.6-1.9 1.2-2.5.1 1 .6 1.5 1.1 1.6C5.5 4.3 5.6 2.8 6 1.5Z" />
+      <path d="M3 10.5h6" />
+    </>
+  ),
+  portail: (
+    <>
+      <path d="M1.5 10.5V3M10.5 10.5V3M1.5 4.5h9M1.5 9h9M4.5 4.5V9M7.5 4.5V9" />
+    </>
+  ),
+  piscine: (
+    <>
+      <path d="M1.5 7.5c1 0 1-.8 2.25-.8s1.25.8 2.25.8 1-.8 2.25-.8 1.25.8 2.25.8M1.5 10c1 0 1-.8 2.25-.8S5 10 6 10s1-.8 2.25-.8S9.5 10 10.5 10" />
+      <path d="M4 6.2V2.5a1 1 0 0 1 2 0M8 6.2V2.5" />
+    </>
+  ),
+  alarme: (
+    <>
+      <path d="M3 8.5V5.5a3 3 0 0 1 6 0v3l1 1.2H2L3 8.5Z" />
+      <path d="M5 10.7a1 1 0 0 0 2 0" />
+    </>
+  ),
+  reserve: <path d="M3 6h6" />,
 };
 
-export function Picto({ kind, size = 12 }: { kind: keyof typeof PICTOS; size?: number }) {
+/** Pictogrammes proposés pour les étiquettes, avec leur nom. */
+export const PICTO_CHOICES: { key: string; label: string }[] = [
+  { key: "eclairage", label: "Éclairage" },
+  { key: "prises", label: "Prises" },
+  { key: "prises_cuisine", label: "Prises cuisine" },
+  { key: "volets", label: "Volets" },
+  { key: "chauffage", label: "Radiateurs" },
+  { key: "chauffe_eau", label: "Chauffe-eau" },
+  { key: "plaque", label: "Plaque" },
+  { key: "four", label: "Four" },
+  { key: "lave_linge", label: "Lave-linge" },
+  { key: "seche_linge", label: "Sèche-linge" },
+  { key: "lave_vaisselle", label: "Lave-vaisselle" },
+  { key: "congelateur", label: "Congélateur" },
+  { key: "micro_ondes", label: "Micro-ondes" },
+  { key: "vmc", label: "VMC" },
+  { key: "irve_prise", label: "Voiture" },
+  { key: "irve_borne", label: "Borne VE" },
+  { key: "pac_clim", label: "PAC / clim" },
+  { key: "chaudiere", label: "Chaudière" },
+  { key: "poele", label: "Poêle" },
+  { key: "eau", label: "Eau / adoucisseur" },
+  { key: "sdb", label: "Salle de bain" },
+  { key: "tv", label: "TV / multimédia" },
+  { key: "informatique", label: "Informatique" },
+  { key: "garage", label: "Garage" },
+  { key: "portail", label: "Portail" },
+  { key: "exterieur", label: "Extérieur" },
+  { key: "piscine", label: "Piscine" },
+  { key: "alarme", label: "Alarme" },
+  { key: "teleruptor", label: "Télérupteur" },
+  { key: "contactor", label: "Contacteur" },
+  { key: "rcd", label: "Différentiel" },
+  { key: "spd", label: "Parafoudre" },
+  { key: "autre", label: "Autre" },
+  { key: "reserve", label: "Réserve" },
+];
+
+export const pictoNode = (kind: string) => PICTOS[kind] ?? PICTOS.generic;
+
+export function Picto({ kind, size = 12 }: { kind: string; size?: number }) {
   return (
     <svg
       width={size}
@@ -354,7 +455,7 @@ export function Picto({ kind, size = 12 }: { kind: keyof typeof PICTOS; size?: n
       strokeLinejoin="round"
       aria-hidden="true"
     >
-      {PICTOS[kind]}
+      {pictoNode(kind)}
     </svg>
   );
 }

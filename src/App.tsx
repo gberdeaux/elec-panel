@@ -5,9 +5,11 @@ import { AssistantView } from "./components/AssistantView";
 import { CompareView } from "./components/CompareView";
 import { DeviceDefs } from "./components/DeviceArt";
 import { HouseView } from "./components/HouseView";
+import { LabelsView } from "./components/LabelsView";
 import { MaterialsView } from "./components/MaterialsView";
 import { OverviewView } from "./components/OverviewView";
 import { PanelView } from "./components/PanelView";
+import { PhotoImportDialog } from "./components/PhotoImport";
 import {
   IconArrowRight,
   IconBolt,
@@ -25,11 +27,13 @@ import {
   IconShield,
   IconSparkles,
   IconSun,
+  IconTag,
   IconUndo,
   IconUpload,
 } from "./components/icons";
 import { Modal, Toasts, toast } from "./components/ui";
 import { useDraftGuard } from "./store/draft";
+import { useUi } from "./store/ui";
 import { type SaveStatus, exportFile, importProjectFile, startPersistence } from "./store/persistence";
 import { type View, useStore } from "./store/store";
 
@@ -46,6 +50,7 @@ const VIEW_TITLE: Record<View, string> = {
   house: "Ma maison",
   panel: "Tableau",
   compare: "Avant / après",
+  labels: "Étiquettes",
   analysis: "Conformité",
   materials: "Matériel",
   assistant: "Assistant IA",
@@ -92,6 +97,7 @@ export function App() {
   const [theme, setTheme] = useTheme();
   const [pendingNav, setPendingNav] = useState<() => void>();
   const guard = useDraftGuard();
+  const photoOpen = useUi((s) => s.photoOpen);
 
   /** Exécute une navigation, en proposant d'abord d'enregistrer un formulaire modifié. */
   const guarded = (action: () => void) => {
@@ -200,6 +206,7 @@ export function App() {
           ))}
           <div className="nav-label">Analyse</div>
           {navItem("compare", "Avant / après", <IconArrowRight />)}
+          {navItem("labels", "Étiquettes", <IconTag />)}
           {navItem("analysis", "Conformité", <IconShield />)}
           {navItem("materials", "Matériel & achats", <IconBox />)}
           {navItem("assistant", "Assistant IA", <IconSparkles />)}
@@ -265,6 +272,7 @@ export function App() {
           {view === "house" && <HouseView />}
           {view === "panel" && <PanelView onAsk={ask} onNavigate={go} />}
           {view === "compare" && <CompareView onNavigate={go} />}
+          {view === "labels" && <LabelsView />}
           {view === "analysis" && <AnalysisView onAsk={ask} />}
           {view === "materials" && <MaterialsView />}
           {view === "assistant" && <AssistantView pending={pendingQuestion} onPendingHandled={() => setPendingQuestion(undefined)} />}
@@ -272,6 +280,7 @@ export function App() {
       </div>
 
       {menu && <ProjectMenu onClose={() => setMenu(false)} />}
+      {photoOpen && <PhotoImportDialog onClose={() => useUi.getState().closePhoto()} onNavigate={go} />}
       {pendingNav && (
         <Modal
           title="Enregistrer les modifications ?"

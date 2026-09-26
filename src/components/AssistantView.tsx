@@ -1,19 +1,17 @@
 import { useEffect, useRef, useState } from "react";
-import { type Assistant, AssistantError, IS_ARTIFACT, readApiKey, resolveAssistant, shrinkImage, storeApiKey } from "../ai/assistant";
+import { type Assistant, AssistantError, IS_ARTIFACT, readApiKey, resolveAssistant, storeApiKey } from "../ai/assistant";
 import { QUICK_PROMPTS, SYSTEM_PROMPT, projectContext } from "../ai/context";
-import { readPanelFromPhoto } from "../ai/photo";
-import type { Panel } from "../domain/types";
 import { inClaudeViewer } from "../store/claude-runtime";
 import { useStore } from "../store/store";
+import { useUi } from "../store/ui";
 import { IconBolt, IconCamera, IconSend, IconSparkles, IconStop } from "./icons";
-import { Field, Markdown, toast } from "./ui";
+import { Markdown } from "./ui";
 
 const MAX_TURNS = 16;
 
 export function AssistantView({ pending, onPendingHandled }: { pending?: string; onPendingHandled: () => void }) {
   const chat = useStore((s) => s.project.chat);
   const setChat = useStore((s) => s.setChat);
-  const createPanelFrom = useStore((s) => s.createPanelFrom);
   const [apiKey, setApiKey] = useState(readApiKey);
   const [keyDraft, setKeyDraft] = useState("");
   const [assistant, setAssistant] = useState<Assistant | null>();
@@ -245,7 +243,15 @@ export function AssistantView({ pending, onPendingHandled }: { pending?: string;
               </div>
             </section>
           )}
-          {assistant && images && <PhotoImport assistant={assistant} onCreate={createPanelFrom} />}
+          {assistant && images && (
+            <section className="card card-body stack">
+              <h3>Lire mon tableau sur une photo</h3>
+              <p className="muted small">Les rangées, les appareils et les étiquettes sont reconnus automatiquement.</p>
+              <button type="button" className="btn btn-primary" onClick={() => useUi.getState().openPhoto()}>
+                <IconCamera size={16} /> Importer une photo
+              </button>
+            </section>
+          )}
           {assistant?.kind === "api" && (
             <section className="card card-body stack">
               <p className="muted small">Connecté avec votre clé API · modèle Claude Opus 5.</p>
@@ -265,65 +271,5 @@ export function AssistantView({ pending, onPendingHandled }: { pending?: string;
         </aside>
       </div>
     </div>
-  );
-}
-
-function PhotoImport({ assistant, onCreate }: { assistant: Assistant; onCreate: (p: Panel) => void }) {
-  const [state, setState] = useState<{ busy?: boolean; error?: string; result?: { panel: Panel; remarks?: string } }>({});
-  return (
-    <section className="card">
-      <div className="card-head">
-        <div>
-          <h3>Lire mon tableau sur une photo</h3>
-          <p className="sub">Capot ouvert, de face, bien éclairé.</p>
-        </div>
-      </div>
-      <div className="card-body stack">
-        <label className={`btn${state.busy ? "" : " btn-primary"}`} style={{ cursor: state.busy ? "wait" : "pointer" }}>
-          <IconCamera size={16} /> {state.busy ? "Lecture en cours…" : "Choisir une photo"}
-          <input
-            id="photo-input"
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            className="sr-only"
-            disabled={state.busy}
-            onChange={async (e) => {
-              const file = e.target.files?.[0];
-              e.target.value = "";
-              if (!file) return;
-              setState({ busy: true });
-              try {
-                const image = await shrinkImage(file);
-                setState({ result: await readPanelFromPhoto(assistant, image) });
-              } catch (err) {
-                setState({ error: (err as Error).message || "La photo n'a pas pu être lue." });
-              }
-            }}
-          />
-        </label>
-        {state.error && <p className="error-text">{state.error}</p>}
-        {state.result && (
-          <div className="stack">
-            <Field label="Résultat">
-              <p className="small">
-                <b>{state.result.panel.rows.flat().length}</b> appareils reconnus sur <b>{state.result.panel.rows.length}</b> rangée(s).
-              </p>
-            </Field>
-            {state.result.remarks && <p className="muted small">{state.result.remarks}</p>}
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={() => {
-                onCreate(state.result!.panel);
-                setState({});
-                toast("Tableau créé depuis la photo");
-              }}
-            >
-              Créer le tableau existant
-            </button>
-          </div>
-        )}
-      </div>
-    </section>
   );
 }

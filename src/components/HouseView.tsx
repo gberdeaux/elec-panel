@@ -30,12 +30,15 @@ export function HouseView() {
   const update = useStore((s) => s.updateHouse);
   const [draft, setDraft] = useState<House>(house);
   const set = (patch: Partial<House>) => setDraft((d) => ({ ...d, ...patch }));
-  const dirty = (Object.keys({ ...house, ...draft }) as (keyof House)[]).some((k) => house[k] !== draft[k]);
+  const dirty = (Object.keys({ ...house, ...draft }) as (keyof House)[]).some((k) => k !== "validatedAt" && house[k] !== draft[k]);
+  const validated = !!house.validatedAt;
   const spd = SPD[surgeProtection(draft)];
 
   const save = () => {
-    update(draft);
-    toast("Maison enregistrée");
+    const saved = { ...draft, validatedAt: Date.now() };
+    update(saved);
+    setDraft(saved);
+    toast("Informations de la maison enregistrées");
   };
   const discard = () => setDraft(house);
 
@@ -79,21 +82,24 @@ export function HouseView() {
           <h1>Ma maison</h1>
           <p className="sub">Ces informations conditionnent les règles appliquées à vos tableaux : nombre de circuits, parafoudre, terre, heures creuses.</p>
         </div>
-        <div className="row">
-          {dirty ? (
-            <>
-              <button type="button" className="btn btn-ghost" onClick={discard}>
-                Annuler
-              </button>
-              <button type="button" className="btn btn-primary" onClick={save}>
-                Enregistrer
-              </button>
-            </>
-          ) : (
-            <span className="saved-state">
-              <IconCheck size={16} /> Enregistré
-            </span>
-          )}
+        <div className="row" style={{ gap: 10 }}>
+          <span className={dirty ? "unsaved-state" : "saved-state"} role="status">
+            {dirty ? (
+              "Modifications non enregistrées"
+            ) : validated ? (
+              <>
+                <IconCheck size={16} /> Aucune modification, tout est enregistré
+              </>
+            ) : (
+              "Vérifiez les informations puis validez"
+            )}
+          </span>
+          <button type="button" className="btn btn-ghost" disabled={!dirty} onClick={discard}>
+            Annuler
+          </button>
+          <button type="button" className="btn btn-primary" disabled={!dirty && validated} onClick={save}>
+            {!dirty && !validated ? "Valider ces informations" : "Enregistrer"}
+          </button>
         </div>
       </div>
       <div className="stack-lg">

@@ -2,15 +2,16 @@ import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { verdict } from "../domain/analysis";
 import { type CatalogItem, DEVICE_BRANDS, catalogById, deviceFromCatalog, findCatalogItem } from "../domain/catalog";
 import { autoFix, quickFixFor } from "../domain/fixes";
-import { findDevice, freeModules, isCircuitDevice, locatedDevices, panelCapacity, repereMap, rowModules } from "../domain/panel";
+import { deviceTitle, findDevice, freeModules, isCircuitDevice, locatedDevices, panelCapacity, repereMap, rowModules } from "../domain/panel";
 import { BRANDS, type Brand, type Panel } from "../domain/types";
 import { type View, useActivePanel, useStore } from "../store/store";
+import { useUi } from "../store/ui";
 import { CatalogPicker } from "./CatalogPicker";
 import { DeviceArt } from "./DeviceArt";
-import { IconArrowRight, IconBolt, IconCheck, IconDuplicate, IconEye, IconTrash, IconWand } from "./icons";
+import { IconArrowRight, IconBolt, IconCamera, IconCheck, IconDuplicate, IconEye, IconTrash, IconWand } from "./icons";
 import { Inspector } from "./Inspector";
 import { Palette } from "./Palette";
-import { GROUP_COLORS, PanelVisual, type PanelViewMode } from "./PanelVisual";
+import { PanelVisual, type PanelViewMode } from "./PanelVisual";
 import { Badge, Field, FindingCard, Modal, NumberInput, complianceScore, toast, useFindings } from "./ui";
 
 export function PanelView({ onAsk, onNavigate }: { onAsk: (q: string) => void; onNavigate: (v: View) => void }) {
@@ -38,6 +39,44 @@ export function PanelView({ onAsk, onNavigate }: { onAsk: (q: string) => void; o
   useEffect(() => {
     setTab(selectedId ? "device" : "issues");
   }, [selectedId]);
+
+  // Clavier : Suppr supprime la sélection, Échap désélectionne, flèches pour naviguer.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.closest("input, textarea, select, [contenteditable]") || document.querySelector(".modal")) return;
+      const current = useStore.getState().selectedDeviceId;
+      if (!current) return;
+      const loc = findDevice(panel, current);
+      if (!loc) return;
+      if (e.key === "Delete" || e.key === "Backspace") {
+        e.preventDefault();
+        const row = panel.rows[loc.row];
+        const neighbour = row[loc.index + 1] ?? row[loc.index - 1];
+        useStore.getState().removeDevice(panel.id, current);
+        select(neighbour?.id);
+        toast(`${deviceTitle(loc.device)} supprimé · Ctrl+Z pour annuler`);
+      } else if (e.key === "Escape") {
+        select(undefined);
+      } else if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+        e.preventDefault();
+        const row = panel.rows[loc.row];
+        const next = row[loc.index + (e.key === "ArrowRight" ? 1 : -1)];
+        if (next) select(next.id);
+      } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        const rows = panel.rows;
+        for (let r = loc.row + (e.key === "ArrowDown" ? 1 : -1); r >= 0 && r < rows.length; r += e.key === "ArrowDown" ? 1 : -1) {
+          if (rows[r].length) {
+            select(rows[r][Math.min(loc.index, rows[r].length - 1)].id);
+            break;
+          }
+        }
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [panel, select]);
 
   const selected = panel.rows.flat().find((d) => d.id === selectedId);
   const v = verdict(findings);
@@ -114,6 +153,11 @@ export function PanelView({ onAsk, onNavigate }: { onAsk: (q: string) => void; o
                 <IconTrash size={15} /> Supprimer
               </button>
             ))}
+          {panel.role === "existing" && (
+            <button type="button" className="btn btn-sm" onClick={() => useUi.getState().openPhoto()}>
+              <IconCamera size={15} /> Depuis une photo
+            </button>
+          )}
           {panel.role === "new" && sources.length > 0 && (
             <button type="button" className="btn btn-sm" onClick={() => setGenerating(true)}>
               <IconWand size={15} /> Régénérer
@@ -234,12 +278,7 @@ export function PanelView({ onAsk, onNavigate }: { onAsk: (q: string) => void; o
           </div>
           <div className="legend">
             <span>
-              <i style={{ width: 16, height: 3, borderRadius: 2, background: GROUP_COLORS[0] }} />
-              Trait sous l'étiquette : différentiel qui protège le départ
-            </span>
-            <span>
-              <i style={{ width: 16, height: 3, borderRadius: 2, background: "#d33a2f" }} />
-              Aucune protection 30 mA
+              <span className="kbd">Suppr</span> supprimer · <span className="kbd">Échap</span> désélectionner · <span className="kbd">← →</span> naviguer
             </span>
             <span>
               <b className="mono" style={{ background: "#121417", color: "var(--volt)", borderRadius: 999, padding: "0 5px", marginRight: 5 }}>?</b>
@@ -377,11 +416,16 @@ function Starter({ panel, onChoose }: { panel: Panel; onChoose: (brand: Brand, r
   ];
   return (
     <section className="card" style={{ marginBottom: 20 }}>
-      <div className="card-head">
-        <div>
+      <div className="card-head" style={{ flexWrap: "wrap" }}>
+        <div style={{ flex: 1, minWidth: 240 }}>
           <h2>Quel est le coffret ?</h2>
           <p className="sub">La marque figure en bas du capot ; comptez les rangées et les emplacements d'une rangée (13 ou 18).</p>
         </div>
+        {panel.role === "existing" && (
+          <button type="button" className="btn btn-primary" onClick={() => useUi.getState().openPhoto()}>
+            <IconCamera size={16} /> Gagner du temps : importer une photo
+          </button>
+        )}
       </div>
       <div className="card-body stack">
         <div className="starter">
