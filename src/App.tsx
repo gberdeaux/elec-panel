@@ -29,6 +29,7 @@ import {
   IconUpload,
 } from "./components/icons";
 import { Modal, Toasts, toast } from "./components/ui";
+import { useDraftGuard } from "./store/draft";
 import { type SaveStatus, exportFile, importProjectFile, startPersistence } from "./store/persistence";
 import { type View, useStore } from "./store/store";
 
@@ -89,6 +90,14 @@ export function App() {
   const [menu, setMenu] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
   const [theme, setTheme] = useTheme();
+  const [pendingNav, setPendingNav] = useState<() => void>();
+  const guard = useDraftGuard();
+
+  /** Exécute une navigation, en proposant d'abord d'enregistrer un formulaire modifié. */
+  const guarded = (action: () => void) => {
+    if (useDraftGuard.getState().dirty) setPendingNav(() => action);
+    else action();
+  };
 
   useEffect(() => startPersistence(setStatus), []);
 
@@ -115,11 +124,12 @@ export function App() {
   );
   const activePanel = project.panels.find((p) => p.id === project.activePanelId);
 
-  const go = (v: View) => {
-    setView(v);
-    setNavOpen(false);
-    window.scrollTo({ top: 0 });
-  };
+  const go = (v: View) =>
+    guarded(() => {
+      setView(v);
+      setNavOpen(false);
+      window.scrollTo({ top: 0 });
+    });
   const ask = (q: string) => {
     setPendingQuestion(q);
     go("assistant");
@@ -162,7 +172,7 @@ export function App() {
           {navItem("house", "Ma maison", <IconHome />)}
           <div className="nav-label">
             Tableaux
-            <button type="button" className="nav-add" onClick={() => addPanel("new")} aria-label="Nouveau tableau" title="Nouveau tableau">
+            <button type="button" className="nav-add" onClick={() => guarded(() => addPanel("new"))} aria-label="Nouveau tableau" title="Nouveau tableau">
               <IconPlus size={14} />
             </button>
           </div>
@@ -172,10 +182,12 @@ export function App() {
               type="button"
               className="nav-item"
               aria-current={view === "panel" && project.activePanelId === p.id ? "page" : undefined}
-              onClick={() => {
-                openPanel(p.id);
-                setNavOpen(false);
-              }}
+              onClick={() =>
+                guarded(() => {
+                  openPanel(p.id);
+                  setNavOpen(false);
+                })
+              }
             >
               <IconPanel />
               <span className="nav-text">{p.name}</span>
@@ -260,6 +272,49 @@ export function App() {
       </div>
 
       {menu && <ProjectMenu onClose={() => setMenu(false)} />}
+      {pendingNav && (
+        <Modal
+          title="Enregistrer les modifications ?"
+          subtitle={`Vous avez modifié « ${guard.label ?? "cette page"} » sans enregistrer.`}
+          size="sm"
+          onClose={() => setPendingNav(undefined)}
+          footer={
+            <>
+              <button type="button" className="btn btn-ghost" onClick={() => setPendingNav(undefined)}>
+                Rester sur la page
+              </button>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => {
+                  guard.discard?.();
+                  guard.setDirty(false);
+                  const next = pendingNav;
+                  setPendingNav(undefined);
+                  next();
+                }}
+              >
+                Ne pas enregistrer
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => {
+                  guard.save?.();
+                  guard.setDirty(false);
+                  const next = pendingNav;
+                  setPendingNav(undefined);
+                  next();
+                }}
+              >
+                Enregistrer
+              </button>
+            </>
+          }
+        >
+          <p className="muted">Les règles de vos tableaux dépendent de ces informations.</p>
+        </Modal>
+      )}
       <Toasts />
     </div>
   );
