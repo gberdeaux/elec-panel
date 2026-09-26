@@ -1845,22 +1845,23 @@ table.data .r {
   right: 8px;
   bottom: 8px;
 }
+/* Même encombrement capot fermé et capot ouvert : chaque rangée occupe l'entraxe réel (125 mm). */
 .plastron {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  padding: 12px 14px 16px 30px;
-}
-.prow {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  padding: 0 14px calc(var(--pitch) * 0.14) 30px;
+  border-radius: 10px;
+}
+.prow {
+  position: relative;
+  width: var(--row-w);
+  height: var(--pitch);
 }
 .prow-index {
   position: absolute;
   left: -24px;
-  top: 50%;
+  top: calc(var(--nose-top) + var(--nose-h) / 2);
   width: 16px;
   height: 16px;
   transform: translateY(-50%);
@@ -1874,9 +1875,11 @@ table.data .r {
   background: #ecece8;
 }
 .label-holder {
-  position: relative;
+  position: absolute;
+  left: 0;
+  top: calc(var(--nose-top) - var(--label-h) - 5px);
   width: var(--row-w);
-  height: 32px;
+  height: var(--label-h);
   border-radius: 3px;
   padding: 3px;
   background: linear-gradient(180deg, #e9eaea, #f6f6f5);
@@ -1959,7 +1962,9 @@ table.data .r {
   text-overflow: ellipsis;
 }
 .cutout {
-  position: relative;
+  position: absolute;
+  left: 0;
+  top: var(--nose-top);
   display: flex;
   width: var(--row-w);
   height: var(--nose-h);
@@ -2129,9 +2134,6 @@ button.blanking:focus-visible .blanking-cta {
   text-shadow: 0 1px 0 #fff;
 }
 .coffret--open .plastron {
-  gap: 44px;
-  padding-top: 34px;
-  border-radius: 10px;
   background-color: #c9cdd1;
   background-image: radial-gradient(rgb(0 0 0 / 0.08) 1.2px, transparent 1.4px), linear-gradient(180deg, #d3d6da, #c1c6cb);
   background-size: 12px 12px, 100% 100%;
@@ -2141,13 +2143,13 @@ button.blanking:focus-visible .blanking-cta {
   background: #eef0f2;
 }
 .coffret--open .cutout {
-  height: auto;
-  min-height: var(--dev-h);
+  top: var(--row-top);
+  height: var(--dev-h);
   align-items: flex-start;
   background: transparent;
   box-shadow: none;
 }
-.coffret--open .blanking {
+.coffret--open[data-skin] .blanking {
   height: calc(var(--dev-h) * 0.62);
   margin-top: calc(var(--dev-h) * 0.19);
   background: rgb(255 255 255 / 0.25);
@@ -2193,15 +2195,17 @@ button.blanking:focus-visible .blanking-cta {
 .wires--up {
   position: absolute;
   left: 0;
-  top: -24px;
   margin: 0;
 }
 .earth-bar {
+  position: absolute;
+  left: 30px;
+  right: 14px;
+  bottom: calc(var(--pitch) * 0.035);
   display: flex;
   align-items: center;
   justify-content: space-around;
   height: 18px;
-  margin-top: -10px;
   padding: 0 10px;
   border-radius: 3px;
   background: repeating-linear-gradient(135deg, #2f9e44 0 9px, #f0c419 9px 18px);
@@ -2714,4 +2718,63 @@ button.blanking:focus-visible .blanking-cta {
     animation: none !important;
     transition: none !important;
   }
+}
+
+/* ---------- Enregistrement explicite ---------- */
+.saved-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--ok);
+}
+.savebar {
+  position: sticky;
+  bottom: 16px;
+  z-index: 15;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 20px;
+  padding: 12px 14px 12px 16px;
+  border-radius: 12px;
+  background: #16181c;
+  color: #e9ecf0;
+  box-shadow: var(--shadow-lg);
+  flex-wrap: wrap;
+  animation: pop 0.16s ease;
+}
+.savebar-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--volt);
+  box-shadow: 0 0 0 4px rgb(255 194 26 / 0.25);
+  flex: none;
+}
+.savebar-text {
+  flex: 1;
+  min-width: 200px;
+}
+.savebar-text b {
+  display: block;
+  color: #fff;
+}
+.savebar-text span {
+  font-size: 0.82rem;
+  color: #a8afb9;
+}
+.savebar .btn:not(.btn-primary) {
+  background: transparent;
+  color: #e9ecf0;
+  border-color: #3a3f47;
+  box-shadow: none;
+}
+.kbd-inline {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgb(0 0 0 / 0.12);
 }

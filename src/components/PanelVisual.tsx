@@ -3,10 +3,18 @@ import { findingsForDevice, worstSeverity } from "../domain/analysis";
 import { USAGES } from "../domain/norm";
 import { deviceTitle, isCircuitDevice, isHighSensitivity, protectionMap, repereMap, rowModules } from "../domain/panel";
 import type { Device, Finding, Panel } from "../domain/types";
-import { DEVICE_H, DeviceArt, MODULE_MM, NOSE_H, skinOf } from "./DeviceArt";
+import { DEVICE_H, DeviceArt, MODULE_MM, NOSE_H, NOSE_Y, skinOf } from "./DeviceArt";
 import { IconPlus, Picto } from "./icons";
 
 export type PanelViewMode = "front" | "open";
+
+/** Entraxe réel entre deux rangées d'un coffret résidentiel (Resi9, Drivia, Gamma). */
+export const ROW_PITCH_MM = 125;
+/** Marge entre le haut de la rangée et le haut de l'appareil posé sur le rail. */
+const ROW_TOP_MM = (ROW_PITCH_MM - DEVICE_H) / 2;
+/** Position du nez de l'appareil (partie visible capot fermé) dans la rangée. */
+const NOSE_TOP_MM = ROW_TOP_MM + NOSE_Y;
+const LABEL_H_MM = 11;
 
 export const DRAG_DEVICE = "application/x-qc-device";
 export const DRAG_CATALOG = "application/x-qc-catalog";
@@ -88,6 +96,10 @@ export function PanelVisual({ panel, findings, mode, selectedId, readOnly, maxSc
     "--row-w": `${mpr * mod}px`,
     "--nose-h": `${NOSE_H * scale}px`,
     "--dev-h": `${DEVICE_H * scale}px`,
+    "--pitch": `${ROW_PITCH_MM * scale}px`,
+    "--row-top": `${ROW_TOP_MM * scale}px`,
+    "--nose-top": `${NOSE_TOP_MM * scale}px`,
+    "--label-h": `${Math.max(24, LABEL_H_MM * scale)}px`,
     "--s": scale,
   } as CSSProperties;
 
@@ -154,8 +166,8 @@ export function PanelVisual({ panel, findings, mode, selectedId, readOnly, maxSc
             </span>
           )}
         </button>
-        {mode === "open" && isCircuitDevice(d) && <Wires device={d} mod={mod} unprotected={unprotected} />}
-        {mode === "open" && d.kind === "rcd" && <SupplyWires mod={mod} modules={d.modules} />}
+        {mode === "open" && isCircuitDevice(d) && <Wires device={d} mod={mod} height={ROW_TOP_MM * scale - 2} unprotected={unprotected} />}
+        {mode === "open" && d.kind === "rcd" && <SupplyWires mod={mod} modules={d.modules} height={ROW_TOP_MM * scale} />}
       </div>
     );
   };
@@ -290,27 +302,27 @@ function Comb({ row, guards, mod, scale }: { row: Device[]; guards: Map<string, 
   );
 }
 
-function Wires({ device, mod, unprotected }: { device: Device; mod: number; unprotected: boolean }) {
+function Wires({ device, mod, height, unprotected }: { device: Device; mod: number; height: number; unprotected: boolean }) {
   const w = device.modules * mod;
-  const h = 44;
+  const h = Math.max(12, height);
   const p = w * 0.28;
   const n = w * 0.72;
   return (
     <svg className="wires" width={w} height={h} viewBox={`0 0 ${w} ${h}`} aria-hidden="true">
       <path d={`M${p} 0 C${p} ${h * 0.5}, ${p - 3} ${h * 0.7}, ${p - 2} ${h}`} stroke="#7a4a26" strokeWidth="3.2" fill="none" strokeLinecap="round" />
       <path d={`M${n} 0 C${n} ${h * 0.5}, ${n + 3} ${h * 0.7}, ${n + 2} ${h}`} stroke="#2a5bd7" strokeWidth="3.2" fill="none" strokeLinecap="round" />
-      {unprotected && <circle cx={w / 2} cy={h - 8} r="5" fill="#d33a2f" />}
+      {unprotected && <circle cx={w / 2} cy={h - 6} r="4.5" fill="#d33a2f" />}
     </svg>
   );
 }
 
-function SupplyWires({ mod, modules }: { mod: number; modules: number }) {
+function SupplyWires({ mod, modules, height }: { mod: number; modules: number; height: number }) {
   const w = modules * mod;
-  const h = 26;
+  const h = Math.max(12, height);
   const p = w * 0.72;
   const n = w * 0.28;
   return (
-    <svg className="wires wires--up" width={w} height={h} viewBox={`0 0 ${w} ${h}`} aria-hidden="true">
+    <svg className="wires wires--up" width={w} height={h} viewBox={`0 0 ${w} ${h}`} style={{ top: -h }} aria-hidden="true">
       <path d={`M${p} ${h} C${p} ${h * 0.5}, ${p + 2} ${h * 0.3}, ${p + 1} 0`} stroke="#7a4a26" strokeWidth="4" fill="none" strokeLinecap="round" />
       <path d={`M${n} ${h} C${n} ${h * 0.5}, ${n - 2} ${h * 0.3}, ${n - 1} 0`} stroke="#2a5bd7" strokeWidth="4" fill="none" strokeLinecap="round" />
     </svg>
