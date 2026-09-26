@@ -143,3 +143,18 @@ export function deviceBadge(d: Device): string {
       return "";
   }
 }
+
+/** Repères de schéma : ID1, ID2… pour les différentiels, Q1, Q2… pour les départs, F1… pour les autres appareils. */
+export function repereMap(panel: Panel): Map<string, string> {
+  const map = new Map<string, string>();
+  let id = 0;
+  let q = 0;
+  let f = 0;
+  for (const row of panel.rows)
+    for (const d of row) {
+      if (d.kind === "rcd") map.set(d.id, `ID${++id}`);
+      else if (d.kind === "mcb" || d.kind === "rcbo" || d.kind === "fuse") map.set(d.id, `Q${++q}`);
+      else if (d.kind !== "blank") map.set(d.id, `F${++f}`);
+    }
+  return map;
+}

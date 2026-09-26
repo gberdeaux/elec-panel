@@ -6,7 +6,7 @@ import { findDevice, newId } from "../domain/panel";
 import { emptyPanel, sampleProject } from "../domain/sample";
 import type { Brand, ChatTurn, Device, Enclosure, House, InventoryEntry, Panel, PanelRole, Project } from "../domain/types";
 
-export type View = "overview" | "house" | "panel" | "analysis" | "materials" | "assistant";
+export type View = "overview" | "house" | "panel" | "compare" | "analysis" | "materials" | "assistant";
 
 interface State {
   project: Project;
@@ -37,6 +37,8 @@ interface State {
   createPanelFrom(panel: Panel): void;
 
   addDevice(panelId: string, row: number, device: Omit<Device, "id">, index?: number): string;
+  /** Remplace un tableau entier (corrections automatiques). */
+  replacePanel(panel: Panel): void;
   updateDevice(panelId: string, deviceId: string, patch: Partial<Device>): void;
   removeDevice(panelId: string, deviceId: string): void;
   moveDevice(panelId: string, deviceId: string, toRow: number, toIndex: number): void;
@@ -223,6 +225,11 @@ export const useStore = create<State>((set, get) => {
       set({ selectedDeviceId: id });
       return id;
     },
+    replacePanel: (panel) =>
+      commit((d) => {
+        const idx = d.panels.findIndex((p) => p.id === panel.id);
+        if (idx >= 0) d.panels[idx] = panel;
+      }),
     updateDevice: (panelId, deviceId, patch) =>
       commit((d) => {
         const p = panelOf(d, panelId);

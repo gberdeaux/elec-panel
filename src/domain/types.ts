@@ -135,6 +135,8 @@ export interface InventoryEntry {
   owned?: number;
   /** Prix unitaire saisi à la main. */
   price?: number;
+  /** Article acheté (liste de courses). */
+  bought?: boolean;
 }
 
 export interface ChatTurn {
