@@ -454,7 +454,10 @@ export const PICTO_CHOICES: { key: string; label: string }[] = [
   { key: "reserve", label: "Réserve" },
 ];
 
-export const pictoNode = (kind: string) => PICTOS[kind] ?? PICTOS.generic;
+/** Usages dont le pictogramme est partagé avec une autre entrée. */
+const PICTO_ALIASES: Record<string, string> = { adoucisseur: "eau" };
+
+export const pictoNode = (kind: string) => PICTOS[kind] ?? PICTOS[PICTO_ALIASES[kind]] ?? PICTOS.generic;
 
 export function Picto({ kind, size = 12 }: { kind: string; size?: number }) {
   return (

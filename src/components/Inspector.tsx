@@ -20,6 +20,7 @@ const SHORT: Partial<Record<CircuitUsage, string>> = {
   irve_borne: "Borne VE",
   pac_clim: "PAC / clim",
   chaudiere: "Chaudière",
+  adoucisseur: "Adoucisseur",
   exterieur: "Extérieur",
   informatique: "Informatique",
   volets: "Volets",

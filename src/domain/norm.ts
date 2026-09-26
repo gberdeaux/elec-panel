@@ -385,6 +385,21 @@ export const USAGES: Record<CircuitUsage, UsageSpec> = {
     normText:
       "Chaudière gaz ou fioul : alimentée par un circuit dédié, disjoncteur 10 ou 16 A en 1,5 mm² (20 A en 2,5 mm² si la notice le demande), un seul appareil par circuit. Différentiel de type AC ou A.",
   },
+  adoucisseur: {
+    label: "Adoucisseur d'eau",
+    group: "prises",
+    pointsLabel: "prises",
+    defaultRating: 16,
+    defaultSection: 1.5,
+    defaultPoints: 1,
+    allowed: [
+      { rating: 16, section: 1.5, maxPoints: 8 },
+      { rating: 20, section: 2.5, maxPoints: 12 },
+    ],
+    normRef: "NF C 15-100-10 · circuits prises de courant",
+    normText:
+      "Adoucisseur d'eau : appareil de très faible puissance (quelques watts pour la vanne électronique), branché sur une prise 2P+T d'un circuit prises (16 A en 1,5 mm² ou 20 A en 2,5 mm²). Pas de circuit spécialisé obligatoire ; prévoir une prise à proximité de l'arrivée d'eau, hors volumes 0 à 2 en pièce d'eau.",
+  },
   informatique: {
     label: "Informatique / box",
     group: "prises",
@@ -433,6 +448,7 @@ export const USAGE_ORDER: CircuitUsage[] = [
   "irve_borne",
   "pac_clim",
   "chaudiere",
+  "adoucisseur",
   "exterieur",
   "informatique",
   "autre",

@@ -41,7 +41,7 @@ const PHOTO: PhotoResult = {
     ],
     [
       id("Différentiel Technique"),
-      lg(20, "Adoucisseur + Prise", "prises", "eau"),
+      lg(20, "Adoucisseur + Prise", "adoucisseur", "eau"),
       lg(20, "Chaudière", "chaudiere", "chaudiere"),
       lg(20, "Garage", "prises", "prises"),
       { kind: "blank", modules: 2 },

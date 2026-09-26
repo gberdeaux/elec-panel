@@ -43,6 +43,7 @@ export type CircuitUsage =
   | "irve_borne"
   | "pac_clim"
   | "chaudiere"
+  | "adoucisseur"
   | "exterieur"
   | "informatique"
   | "autre";
