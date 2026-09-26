@@ -127,3 +127,24 @@ export async function readPanelFromPhoto(assistant: Assistant, image: Blob, sign
   const result = await assistant.askJson<PhotoResult>(PHOTO_PROMPT, { images: [image], signal });
   return panelFromPhoto(result);
 }
+
+/**
+ * Lit la réponse JSON collée depuis une conversation Claude : accepte un bloc de code,
+ * du texte autour, ou directement la liste des rangées.
+ */
+export function parsePhotoAnswer(answer: string): PhotoResult {
+  const fenced = answer.match(/```(?:json)?\s*([\s\S]*?)```/);
+  const body = fenced ? fenced[1] : answer;
+  const start = body.search(/[[{]/);
+  const end = Math.max(body.lastIndexOf("}"), body.lastIndexOf("]"));
+  if (start < 0 || end <= start) throw new Error("Aucune donnée JSON trouvée dans la réponse collée.");
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(body.slice(start, end + 1));
+  } catch {
+    throw new Error("La réponse collée est incomplète ou mal formée. Copiez toute la réponse de Claude.");
+  }
+  if (Array.isArray(parsed)) return { rows: parsed as PhotoDevice[][] };
+  if (parsed && typeof parsed === "object" && Array.isArray((parsed as PhotoResult).rows)) return parsed as PhotoResult;
+  throw new Error("La réponse ne contient pas de rangées d'appareils.");
+}

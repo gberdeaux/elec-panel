@@ -2938,3 +2938,18 @@ button.blanking:focus-visible .blanking-cta {
   width: 100%;
   height: auto;
 }
+.howto {
+  margin: 0;
+  padding-left: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.howto li::marker {
+  font-family: var(--mono);
+  font-weight: 700;
+}
+.dropzone:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

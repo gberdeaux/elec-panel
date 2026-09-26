@@ -43,8 +43,8 @@ export function PanelView({ onAsk, onNavigate }: { onAsk: (q: string) => void; o
   // Clavier : Suppr supprime la sélection, Échap désélectionne, flèches pour naviguer.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement;
-      if (target.closest("input, textarea, select, [contenteditable]") || document.querySelector(".modal")) return;
+      const target = e.target instanceof Element ? e.target : null;
+      if (target?.closest("input, textarea, select, [contenteditable]") || document.querySelector(".modal")) return;
       const current = useStore.getState().selectedDeviceId;
       if (!current) return;
       const loc = findDevice(panel, current);
@@ -153,11 +153,9 @@ export function PanelView({ onAsk, onNavigate }: { onAsk: (q: string) => void; o
                 <IconTrash size={15} /> Supprimer
               </button>
             ))}
-          {panel.role === "existing" && (
-            <button type="button" className="btn btn-sm" onClick={() => useUi.getState().openPhoto()}>
-              <IconCamera size={15} /> Depuis une photo
-            </button>
-          )}
+          <button type="button" className="btn btn-sm" onClick={() => useUi.getState().openPhoto(panel.id)}>
+            <IconCamera size={15} /> Depuis une photo
+          </button>
           {panel.role === "new" && sources.length > 0 && (
             <button type="button" className="btn btn-sm" onClick={() => setGenerating(true)}>
               <IconWand size={15} /> Régénérer
@@ -421,11 +419,9 @@ function Starter({ panel, onChoose }: { panel: Panel; onChoose: (brand: Brand, r
           <h2>Quel est le coffret ?</h2>
           <p className="sub">La marque figure en bas du capot ; comptez les rangées et les emplacements d'une rangée (13 ou 18).</p>
         </div>
-        {panel.role === "existing" && (
-          <button type="button" className="btn btn-primary" onClick={() => useUi.getState().openPhoto()}>
-            <IconCamera size={16} /> Gagner du temps : importer une photo
-          </button>
-        )}
+        <button type="button" className="btn btn-primary" onClick={() => useUi.getState().openPhoto(panel.id)}>
+          <IconCamera size={16} /> Gagner du temps : importer une photo
+        </button>
       </div>
       <div className="card-body stack">
         <div className="starter">

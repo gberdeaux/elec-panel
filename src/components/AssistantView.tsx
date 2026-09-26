@@ -19,17 +19,14 @@ export function AssistantView({ pending, onPendingHandled }: { pending?: string;
   const [streaming, setStreaming] = useState<string>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
-  const [images, setImages] = useState(false);
   const ctl = useRef<AbortController>(undefined);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let alive = true;
     setAssistant(undefined);
-    resolveAssistant(apiKey).then(async (a) => {
-      if (!alive) return;
-      setAssistant(a);
-      setImages(a ? await a.canUseImages() : false);
+    resolveAssistant(apiKey).then((a) => {
+      if (alive) setAssistant(a);
     });
     return () => {
       alive = false;
@@ -243,7 +240,7 @@ export function AssistantView({ pending, onPendingHandled }: { pending?: string;
               </div>
             </section>
           )}
-          {assistant && images && (
+          {assistant !== undefined && (
             <section className="card card-body stack">
               <h3>Lire mon tableau sur une photo</h3>
               <p className="muted small">Les rangées, les appareils et les étiquettes sont reconnus automatiquement.</p>

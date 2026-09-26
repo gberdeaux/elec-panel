@@ -3,7 +3,7 @@ import { analyzePanel } from "../domain/analysis";
 import { generateCompliantPanel } from "../domain/generator";
 import { rowModules } from "../domain/panel";
 import { defaultHouse } from "../domain/sample";
-import { type PhotoDevice, type PhotoResult, panelFromPhoto } from "./photo";
+import { type PhotoDevice, type PhotoResult, panelFromPhoto, parsePhotoAnswer } from "./photo";
 
 const sch = (label: string, usage: string, rooms: string): PhotoDevice => ({ kind: "mcb", rating: 20, curve: "C", brand: "Schneider", series: "D'clic", label, icon: "prises", usage, rooms });
 const lg = (rating: number, label: string, usage: string, icon: string): PhotoDevice => ({ kind: "mcb", rating, curve: "C", brand: "Legrand", series: "DNX3", label, icon, usage });
@@ -90,5 +90,21 @@ describe("import d'un tableau depuis une photo", () => {
     expect(odd.rows[0][0].rating).toBeUndefined();
     expect(odd.rows[0][0].brand).toBeUndefined();
     expect(odd.rows[0][0].modules).toBe(1);
+  });
+});
+
+describe("réponse collée depuis une conversation Claude", () => {
+  it("lit un bloc de code entouré de texte", () => {
+    const answer = ["Voici le relevé :", "```json", JSON.stringify(PHOTO), "```", "Bonne journée"].join(String.fromCharCode(10));
+    expect(panelFromPhoto(parsePhotoAnswer(answer)).panel.rows).toHaveLength(3);
+  });
+
+  it("accepte directement la liste des rangées", () => {
+    expect(parsePhotoAnswer(JSON.stringify(PHOTO.rows)).rows).toHaveLength(3);
+  });
+
+  it("explique quand la réponse est tronquée", () => {
+    expect(() => parsePhotoAnswer('{"rows": [[{"kind": "mcb"')).toThrow(/incomplète|JSON/);
+    expect(() => parsePhotoAnswer("pas de json")).toThrow(/JSON/);
   });
 });

@@ -10,7 +10,9 @@ L'outil guide chaque étape : bandeau « prochaine étape », palette d'appareil
 2. **Voir ce qui est conforme ou non** : chaque constat indique sa gravité (danger, non conforme, à vérifier, conseil), ce qui a été constaté, ce que dit la norme et comment corriger.
 3. **Générer un nouveau tableau conforme** dans un autre onglet, avec la marque et la largeur de coffret choisies, puis l'ajuster à la main (glisser-déposer, catalogue).
 4. **Établir la liste de matériel** : quantités nécessaires, appareils conformes de l'ancien tableau réemployés automatiquement, quantités possédées modifiables, quantités à acheter, prix indicatifs et lien de recherche Leroy Merlin, export CSV.
-5. **Interroger l'assistant IA** (Claude) sur l'installation, ou lui faire lire une photo du tableau.
+5. **Interroger l'assistant IA** (Claude) sur l'installation.
+6. **Importer un tableau depuis une photo**, pour n'importe quel tableau : envoi direct de la photo quand c'est possible (application locale avec clé API), sinon « Via une conversation Claude » (copier les instructions, joindre la photo dans une conversation Claude, recoller la réponse). Le tableau reconnu peut être ajouté ou remplacer le tableau en cours.
+7. **Imprimer les étiquettes** du porte-étiquette à l'échelle réelle (page Étiquettes).
 
 > Quinze-Cent aide à préparer les travaux. Il ne remplace ni un électricien qualifié, ni le diagnostic électrique, ni l'attestation de conformité Consuel. Toute intervention au tableau se fait hors tension.
 

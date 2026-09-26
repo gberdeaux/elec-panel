@@ -109,8 +109,8 @@ export function App() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement;
-      if (target.closest("input, textarea, select")) return;
+      const target = e.target instanceof Element ? e.target : null;
+      if (target?.closest("input, textarea, select")) return;
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
         e.preventDefault();
         if (e.shiftKey) redo();
