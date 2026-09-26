@@ -21,6 +21,7 @@ export interface Assistant {
 }
 
 const KEY_STORAGE = "quinze-cent:anthropic-key";
+export const IS_ARTIFACT = import.meta.env.MODE === "artifact";
 const MODEL = "claude-opus-5";
 
 export function readApiKey(): string {
@@ -184,7 +185,8 @@ function apiAssistant(apiKey: string): Assistant {
 export async function resolveAssistant(apiKey: string): Promise<Assistant | null> {
   const sample = await getSample();
   if (sample) return claudeAiAssistant(sample);
-  if (apiKey) return apiAssistant(apiKey);
+  // La page claude.ai n'embarque pas le SDK : l'assistant y passe par le compte du visiteur.
+  if (!IS_ARTIFACT && apiKey) return apiAssistant(apiKey);
   return null;
 }
 

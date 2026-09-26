@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { type Assistant, AssistantError, readApiKey, resolveAssistant, shrinkImage, storeApiKey } from "../ai/assistant";
+import { type Assistant, AssistantError, IS_ARTIFACT, readApiKey, resolveAssistant, shrinkImage, storeApiKey } from "../ai/assistant";
 import { QUICK_PROMPTS, SYSTEM_PROMPT, projectContext } from "../ai/context";
 import { readPanelFromPhoto } from "../ai/photo";
 import type { Panel } from "../domain/types";
@@ -85,7 +85,13 @@ export function AssistantView({ pending, onPendingHandled }: { pending?: string;
       <div className="assistant-layout">
         <section className="stack">
           {assistant === undefined && <p className="muted">Connexion à l'assistant…</p>}
-          {assistant === null && (
+          {assistant === null && IS_ARTIFACT && (
+            <div className="card stack">
+              <h3>Assistant indisponible</h3>
+              <p>Ouvrez cette page depuis claude.ai, connecté à votre compte, pour utiliser l'assistant. Le reste de l'application fonctionne normalement.</p>
+            </div>
+          )}
+          {assistant === null && !IS_ARTIFACT && (
             <form
               className="card stack"
               onSubmit={(e) => {
