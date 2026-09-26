@@ -26,6 +26,8 @@ export interface CatalogItem {
   /** Prix unitaire indicatif TTC en euros. */
   price: number;
   custom?: boolean;
+  /** Gamme qui change l'aspect de l'appareil (ex. « D'clic »). */
+  series?: string;
 }
 
 interface BrandProfile {
@@ -392,7 +394,23 @@ const GENERIC: CatalogItem[] = [
   },
 ];
 
-export const CATALOG: CatalogItem[] = [...PROFILES.flatMap(buildBrand), ...GENERIC];
+/** Schneider D'clic : gamme à manette bleu-gris, très répandue dans les tableaux existants. */
+const DCLIC: CatalogItem[] = [10, 16, 20, 32].map((rating) => ({
+  id: `schneider-dclic-c${rating}`,
+  brand: "Schneider",
+  range: "D'clic",
+  series: "D'clic",
+  kind: "mcb",
+  label: `Disjoncteur D'clic ${rating} A courbe C phase + neutre`,
+  modules: 1,
+  rating,
+  curve: "C",
+  poles: "1P+N",
+  breakingCapacity: 3000,
+  price: 8.5,
+}));
+
+export const CATALOG: CatalogItem[] = [...PROFILES.flatMap(buildBrand), ...DCLIC, ...GENERIC];
 
 export const DEVICE_BRANDS: Brand[] = PROFILES.map((p) => p.brand);
 
@@ -465,6 +483,7 @@ export function deviceFromCatalog(item: CatalogItem): Omit<import("./types").Dev
     breakingCapacity: item.breakingCapacity,
     rcdType: item.rcdType,
     sensitivity: item.sensitivity,
+    series: item.series,
     condition: "bon",
   };
 }

@@ -70,6 +70,11 @@ export function DeviceDefs() {
           <stop offset="0" stopColor="#56c33f" />
           <stop offset="1" stopColor="#2f9a24" />
         </linearGradient>
+        <linearGradient id="qc-dclic" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#9aabcb" />
+          <stop offset=".5" stopColor="#7d91ba" />
+          <stop offset="1" stopColor="#6378a3" />
+        </linearGradient>
         <linearGradient id="qc-window" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" stopColor="#cfe3f6" />
           <stop offset=".45" stopColor="#e9f3fc" />
@@ -90,7 +95,7 @@ export function DeviceDefs() {
   );
 }
 
-type ArtDevice = Pick<Device, "kind" | "modules" | "rating" | "curve" | "poles" | "breakingCapacity" | "rcdType" | "sensitivity" | "brand" | "condition" | "label" | "ref">;
+type ArtDevice = Pick<Device, "kind" | "modules" | "rating" | "curve" | "poles" | "breakingCapacity" | "rcdType" | "sensitivity" | "brand" | "condition" | "label" | "ref" | "series">;
 
 export function DeviceArt({ device, view, scale }: { device: ArtDevice; view: "front" | "full"; scale: number }) {
   const m = Math.max(1, device.modules);
@@ -329,6 +334,7 @@ function GreyToggle({ cx, on, top = 15, h = 19 }: { cx: number; on: boolean; top
 function Face({ device, skin, w, on }: { device: ArtDevice; skin: Skin; w: number; on: boolean }) {
   const k = device.kind;
   if (k === "mcb" || k === "rcd" || k === "rcbo") {
+    if (skin === "schneider" && device.kind === "mcb" && device.series === "D'clic") return <DclicFace device={device} w={w} on={on} />;
     if (skin === "schneider") return <SchneiderFace device={device} w={w} on={on} />;
     if (skin === "legrand") return <LegrandFace device={device} w={w} on={on} />;
     return <NeutralFace device={device} w={w} on={on} skin={skin} />;
@@ -369,11 +375,10 @@ function SchneiderFace({ device, w, on }: { device: ArtDevice; w: number; on: bo
   const rx = 19.4;
   return (
     <g>
-      <rect x="3.2" y="2.6" width="9" height="7.6" rx="1.1" fill="#ececea" stroke="#cdcdc8" strokeWidth=".3" />
-      <rect x="3.8" y="3.1" width="7.8" height="6.4" rx=".8" fill="#f7f7f5" />
-      <Txt x={7.7} y={7.9} size={3.2} weight={700} fill="#b6b6b2">
-        T
-      </Txt>
+      <ellipse cx="7.8" cy="6.6" rx="5" ry="4.4" fill="#e7e7e3" stroke="#c9c9c4" strokeWidth=".3" />
+      <ellipse cx="7.8" cy="6.2" rx="4.1" ry="3.5" fill="#fbfbf9" />
+      <ellipse cx="7" cy="5.1" rx="2.2" ry="1.2" fill="#ffffff" opacity=".9" />
+      <path d="M5.4 8.9 q2.4 1.2 4.8 0" fill="none" stroke="#d2d2cd" strokeWidth=".35" />
       <Txt x={7.7} y={12.2} size={1.05} fill={SKIN.schneider.soft}>
         Test régulier
       </Txt>
@@ -408,6 +413,37 @@ function SchneiderFace({ device, w, on }: { device: ArtDevice; w: number; on: bo
         {`${device.sensitivity ?? 30}mA`}
       </Txt>
       <RcdSymbol type={device.rcdType} x={w - 6.2} y={40.9} ink={soft} />
+    </g>
+  );
+}
+
+/** Schneider D'clic : boîtier blanc, grande palette bleu-gris. */
+function DclicFace({ device, w, on }: { device: ArtDevice; w: number; on: boolean }) {
+  const soft = SKIN.schneider.soft;
+  const top = on ? 20.2 : 25.4;
+  return (
+    <g>
+      <SchneiderMark x={1.6} y={4.2} />
+      <path d="M1.8 9.4 h1.6 v1.6 h-1.6 Z" fill="none" stroke={soft} strokeWidth=".25" />
+      <Txt x={4.2} y={10.9} size={1.55} fill={soft} anchor="start">
+        D'clic
+      </Txt>
+      <rect x="1.4" y="18.6" width={w - 2.8} height="17.6" rx="1.2" fill="#e8e9eb" stroke="#d0d2d6" strokeWidth=".25" />
+      <rect x="2" y={top} width={w - 4} height="10" rx="1.3" fill="url(#qc-dclic)" />
+      <rect x="2" y={top} width={w - 4} height="2.2" rx="1" fill="#ffffff" opacity=".35" />
+      <path d={`M3.2 ${top + 6.4} H${w - 3.2}`} stroke="#ffffff" strokeOpacity=".45" strokeWidth=".35" />
+      <Txt x={w / 2} y={top + 8.6} size={1.3} weight={700} fill="#eef2fa">
+        {on ? "I-ON" : "O-OFF"}
+      </Txt>
+      <Txt x={1.6} y={41.4} size={1.05} fill={soft} anchor="start">
+        230V~
+      </Txt>
+      <Txt x={1.6} y={43.1} size={1.05} fill={soft} anchor="start">
+        3000
+      </Txt>
+      <Txt x={w - 1.4} y={43.6} size={3.4} weight={700} fill={SKIN.schneider.ink} anchor="end">
+        {`${device.curve ?? "C"}${device.rating ?? "?"}`}
+      </Txt>
     </g>
   );
 }
@@ -600,6 +636,22 @@ function OtherFace({ device, w, on, skin }: { device: ArtDevice; w: number; on: 
         </g>
       );
     case "teleruptor":
+      if (skin === "legrand")
+        return (
+          <g>
+            <LegrandWindow x={1.5} w={w - 3} />
+            <rect x={cx - 5.2} y="15.5" width="10.4" height="15" rx=".8" fill="#d9d9d6" stroke="#a9a9a6" strokeWidth=".3" />
+            <rect x={cx - 3.6} y={on ? 16.6 : 22.2} width="7.2" height="7.2" rx=".8" fill="url(#qc-lever-grey)" />
+            <path d={`M${cx - 2.6} ${(on ? 16.6 : 22.2) + 2.4} H${cx + 2.6}`} stroke="#000" strokeOpacity=".25" strokeWidth=".3" />
+            <Txt x={cx} y={35.4} size={2.7} weight={700} fill={s.ink}>
+              {`${device.rating ?? 16}AX`}
+            </Txt>
+            <Txt x={cx} y={38.4} size={1.2} fill={s.soft}>
+              250V~
+            </Txt>
+            <LegrandBrand x={3.1} y={43.4} lineTo={w - 1.6} />
+          </g>
+        );
       return (
         <g>
           <Txt x={cx} y={4.6} size={2.6} weight={700} fill={s.ink}>
