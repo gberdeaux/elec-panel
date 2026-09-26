@@ -13,6 +13,7 @@ import {
   isTypeAOrBetter,
   maxPointsFor,
   maxRatingForSection,
+  mm2,
 } from "./norm";
 import {
   circuitsByRcd,
@@ -194,10 +195,10 @@ export function analyzePanel(panel: Panel, house: House): Finding[] {
         ruleId: "section-calibre",
         severity: "danger",
         title: `${label(d)} : câble trop fin pour le calibre`,
-        detail: `Disjoncteur ${rating} A sur des fils de ${c.sectionMm2} mm² (maximum ${maxRatingForSection(c.sectionMm2)} A). Le câble peut chauffer sans que le disjoncteur ne coupe.`,
+        detail: `Disjoncteur ${rating} A sur des fils de ${mm2(c.sectionMm2)} mm² (maximum ${maxRatingForSection(c.sectionMm2)} A). Le câble peut chauffer sans que le disjoncteur ne coupe.`,
         norm: "Le calibre du disjoncteur est adapté à la section : 1,5 mm² → 16 A max, 2,5 mm² → 20 A, 4 mm² → 25 A, 6 mm² → 32 A.",
         normRef: "NF C 15-100-10 · protection des circuits",
-        fix: `Descendre le disjoncteur à ${maxRatingForSection(c.sectionMm2)} A (en vérifiant l'usage) ou recâbler le circuit en ${expectedProtection(c.usage, c.powerW, undefined).section} mm².`,
+        fix: `Descendre le disjoncteur à ${maxRatingForSection(c.sectionMm2)} A (en vérifiant l'usage) ou recâbler le circuit en ${mm2(expectedProtection(c.usage, c.powerW, undefined).section)} mm².`,
         deviceIds: [d.id],
       });
     }
@@ -211,7 +212,7 @@ export function analyzePanel(panel: Panel, house: House): Finding[] {
         detail: `Un circuit « ${spec.label} » ne doit pas être protégé en ${rating} A.`,
         norm: spec.normText,
         normRef: spec.normRef,
-        fix: `Utiliser un disjoncteur ${exp.rating} A avec des fils de ${exp.section} mm².`,
+        fix: `Utiliser un disjoncteur ${exp.rating} A avec des fils de ${mm2(exp.section)} mm².`,
         deviceIds: [d.id],
       });
     }
@@ -257,7 +258,7 @@ export function analyzePanel(panel: Panel, house: House): Finding[] {
           fix:
             c.powerW > 7250
               ? `Répartir les radiateurs sur ${Math.ceil(c.powerW / 4500)} circuits de 20 A en 2,5 mm².`
-              : `Passer en ${exp.rating} A avec des fils de ${exp.section} mm², ou répartir sur ${Math.ceil(c.powerW / 4500)} circuits 20 A.`,
+              : `Passer en ${exp.rating} A avec des fils de ${mm2(exp.section)} mm², ou répartir sur ${Math.ceil(c.powerW / 4500)} circuits 20 A.`,
           deviceIds: [d.id],
         });
       }
@@ -270,7 +271,7 @@ export function analyzePanel(panel: Panel, house: House): Finding[] {
         detail: `${c.powerW} W représentent ${(c.powerW / 230).toFixed(1)} A.`,
         norm: spec.normText,
         normRef: spec.normRef,
-        fix: `Prévoir un disjoncteur ${exp.rating} A avec des fils de ${exp.section} mm².`,
+        fix: `Prévoir un disjoncteur ${exp.rating} A avec des fils de ${mm2(exp.section)} mm².`,
         deviceIds: [d.id],
       });
     }

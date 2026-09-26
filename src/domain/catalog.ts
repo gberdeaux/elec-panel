@@ -448,3 +448,23 @@ export const KIND_LABEL: Record<CatalogKind, string> = {
 export function leroyMerlinSearchUrl(text: string): string {
   return `https://www.leroymerlin.fr/resultats/?q=${encodeURIComponent(text)}`;
 }
+
+/** Crée un appareil à partir d'un article du catalogue. */
+export function deviceFromCatalog(item: CatalogItem): Omit<import("./types").Device, "id"> {
+  const kind = item.kind === "blankStrip" ? "blank" : item.kind;
+  if (kind === "enclosure" || kind === "comb") throw new Error("Cet article n'est pas un appareil modulaire.");
+  return {
+    kind,
+    catalogId: item.id,
+    brand: item.brand,
+    ref: item.ref,
+    modules: kind === "blank" ? 1 : (item.modules ?? 1),
+    rating: item.rating,
+    curve: item.curve,
+    poles: item.poles,
+    breakingCapacity: item.breakingCapacity,
+    rcdType: item.rcdType,
+    sensitivity: item.sensitivity,
+    condition: "bon",
+  };
+}

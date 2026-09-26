@@ -450,3 +450,6 @@ export const RCD_TYPE_LABEL: Record<RcdType, string> = {
 export function isTypeAOrBetter(t?: RcdType): boolean {
   return t === "A" || t === "A-SI" || t === "F" || t === "B";
 }
+
+/** Section au format français : 1,5 mm². */
+export const mm2 = (n: number | undefined) => (n === undefined ? "?" : String(n).replace(".", ","));

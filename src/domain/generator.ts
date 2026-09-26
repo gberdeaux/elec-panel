@@ -13,7 +13,9 @@ import {
   expectedProtection,
   heatingMaxPower,
   isTypeAOrBetter,
+  maxRatingForSection,
   maxPointsFor,
+  mm2,
 } from "./norm";
 import { isCircuitDevice, locatedDevices, newId, rowModules } from "./panel";
 import type { Brand, Circuit, CircuitUsage, Device, House, Panel, RcdType } from "./types";
@@ -44,10 +46,12 @@ export function planCircuit(source: Device, notes: string[]): Planned[] {
 
   if (c.usage === "chauffage") {
     const power = c.powerW ?? (source.rating ? heatingMaxPower(source.rating) : 4500);
-    const parts = power > 7250 ? Math.ceil(power / 4500) : 1;
+    // Section existante connue : on répartit les radiateurs plutôt que de recâbler en plus gros.
+    const perCircuit = c.sectionMm2 ? heatingMaxPower(maxRatingForSection(c.sectionMm2)) || 4500 : 7250;
+    const parts = power > perCircuit ? Math.ceil(power / Math.min(perCircuit, 4500)) : 1;
     const each = Math.round(power / parts);
     const exp = expectedProtection("chauffage", each);
-    if (parts > 1) notes.push(`Chauffage « ${name} » (${power} W) réparti sur ${parts} circuits de ${exp.rating} A.`);
+    if (parts > 1) notes.push(`Chauffage « ${name} » (${power} W) réparti sur ${parts} circuits de ${exp.rating} A : tirer un câble supplémentaire pour une partie des radiateurs.`);
     if (!c.powerW) notes.push(`Chauffage « ${name} » : puissance inconnue, circuit dimensionné pour ${power} W. Vérifier la puissance des radiateurs.`);
     return Array.from({ length: parts }, (_, i) =>
       withSection(
@@ -69,7 +73,7 @@ export function planCircuit(source: Device, notes: string[]): Planned[] {
   let parts = max && c.points > max ? Math.ceil(c.points / max) : 1;
   if (c.usage === "volets" && c.points >= 4) parts = Math.max(parts, 2);
   if (parts > 1 && !spec.dedicated) {
-    notes.push(`« ${name} » : ${c.points} ${spec.pointsLabel} répartis sur ${parts} circuits.`);
+    notes.push(`« ${name} » : ${c.points} ${spec.pointsLabel}, circuit scindé en ${parts}.`);
   }
   if (spec.dedicated && c.points > 1) {
     notes.push(`« ${name} » alimente ${c.points} appareils : prévoir un circuit spécialisé par appareil (${parts} circuits créés).`);
@@ -90,12 +94,13 @@ function withSection(
 ): Planned {
   const rewire = c.sectionMm2 !== undefined && c.sectionMm2 < exp.section;
   if (rewire) {
-    notes.push(`Recâbler « ${describe(c, label)} » en ${exp.section} mm² (actuellement ${c.sectionMm2} mm²).`);
+    notes.push(`Recâbler « ${describe(c, label)} » en ${mm2(exp.section)} mm² (actuellement ${mm2(c.sectionMm2)} mm²).`);
   }
   return {
     rating: exp.rating,
     label,
-    circuit: { ...c, sectionMm2: exp.section, rewire: rewire || undefined },
+    // Un câble existant plus gros que nécessaire est conservé.
+    circuit: { ...c, sectionMm2: Math.max(exp.section, c.sectionMm2 ?? 0), rewire: rewire || undefined },
   };
 }
 
@@ -198,7 +203,10 @@ export function distribute(circuits: Planned[]): Group[] {
       function score(g: Group) {
         const same = g.items.filter((x) => USAGES[x.circuit.usage].group === group).length;
         const heavies = g.items.filter((x) => USAGES[x.circuit.usage].heavy).length;
-        return same * 100 + (heavy ? heavies * 50 : 0) + g.items.length * 10 + groupLoad(g) / 10;
+        const weight = p.rating * (USAGES[p.circuit.usage].fullLoad ? 1 : 0.5);
+        // Garder chaque différentiel sous 40 A de charge calculée évite un 63 A plus cher.
+        const overload = groupLoad(g) + weight > 40 ? 1000 : 0;
+        return overload + same * 100 + (heavy ? heavies * 50 : 0) + g.items.length * 10 + groupLoad(g) / 10;
       }
     };
 
@@ -267,8 +275,9 @@ export function generateCompliantPanel(
   const rows: Device[][] = [];
 
   for (const g of groups) {
+    // Règle de l'aval (charge calculée) ou de l'amont (calibre du disjoncteur de branchement).
     const load = groupLoad(g);
-    const rating = load <= 40 ? 40 : 63;
+    const rating = load <= 40 || house.agcpRating <= 40 ? 40 : 63;
     const rcdItem = pick(brand, { kind: "rcd", rating, rcdType: g.type }, custom);
     const rcd = deviceFrom(rcdItem, {
       kind: "rcd",
