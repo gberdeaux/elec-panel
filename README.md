@@ -2,6 +2,8 @@
 
 Simulateur de tableau électrique pour préparer la mise en conformité d'une maison (installation **monophasée**) avec la norme **NF C 15-100**, dans sa révision du 23 août 2024 (obligatoire depuis le 23 août 2025).
 
+L'interface est celle d'un espace de travail SaaS (barre latérale, tableau de bord, thèmes clair et sombre). Les tableaux sont dessinés de façon réaliste à l'échelle (module de 18 mm) : **capot fermé** avec plastron, porte-étiquettes à pictogrammes, nez des appareils, manettes, bouton test et obturateurs, ou **capot ouvert** avec rail DIN, bornes à vis, peigne d'alimentation, câblage et barrette de terre.
+
 1. **Décrire le tableau existant** : coffret (marque, rangées, modules), appareils posés sur les rails (disjoncteurs, différentiels, fusibles, parafoudre, contacteur…) et, pour chaque départ, ce qui y est branché : usage, pièces, nombre de prises ou de points lumineux, puissance, section des fils, état.
 2. **Voir ce qui est conforme ou non** : chaque constat indique sa gravité (danger, non conforme, à vérifier, conseil), ce qui a été constaté, ce que dit la norme et comment corriger.
 3. **Générer un nouveau tableau conforme** dans un autre onglet, avec la marque et la largeur de coffret choisies, puis l'ajuster à la main (glisser-déposer, catalogue).

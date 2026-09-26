@@ -2,13 +2,14 @@ import { useMemo, useState } from "react";
 import { SEVERITY_LABEL, SEVERITY_ORDER, analyzePanel, verdict } from "../domain/analysis";
 import type { Panel, Severity } from "../domain/types";
 import { useStore } from "../store/store";
-import { FindingCard } from "./ui";
+import { IconCheck, IconPanel, IconSparkles } from "./icons";
+import { Badge, FindingCard, ScoreRing, complianceScore } from "./ui";
 
-const STATUS_TEXT = {
-  conforme: "Conforme",
-  "a-corriger": "À corriger",
-  dangereux: "Dangereux",
-};
+const STATUS = {
+  conforme: { tone: "ok", label: "Conforme", text: "Aucune non-conformité détectée d'après les informations saisies." },
+  "a-corriger": { tone: "nonconforme", label: "À mettre en conformité", text: "Le tableau n'est pas conforme à la norme actuelle, sans danger immédiat identifié." },
+  dangereux: { tone: "danger", label: "Dangereux", text: "Des points présentent un risque pour les personnes ou les biens : commencez par ceux marqués « Danger »." },
+} as const;
 
 export function AnalysisView({ onAsk }: { onAsk: (q: string) => void }) {
   const project = useStore((s) => s.project);
@@ -24,6 +25,7 @@ export function AnalysisView({ onAsk }: { onAsk: (q: string) => void }) {
   );
   const current = results.find((r) => r.panel.id === panel.id)!;
   const v = verdict(current.findings);
+  const status = STATUS[v.status];
   const shown = current.findings.filter((f) => filter === "all" || f.severity === filter);
 
   const locate = (p: Panel, deviceId: string) => {
@@ -32,99 +34,118 @@ export function AnalysisView({ onAsk }: { onAsk: (q: string) => void }) {
   };
 
   return (
-    <div className="stack" style={{ gap: 18 }}>
-      <div>
-        <div className="eyebrow">NF C 15-100 · révision 2024</div>
-        <h2>Conformité</h2>
+    <div>
+      <div className="page-head">
+        <div>
+          <h1>Conformité</h1>
+          <p className="sub">Analyse selon la NF C 15-100 (révision 2024). Chaque constat indique la règle et la façon de corriger.</p>
+        </div>
+        <button type="button" className="btn" onClick={() => onAsk(`Fais le point sur la conformité de « ${panel.name} » et dis-moi par quoi commencer.`)}>
+          <IconSparkles size={16} /> Demander un avis
+        </button>
       </div>
 
-      {results.length > 1 && (
-        <div className="compare">
-          {results.map(({ panel: p, findings }) => {
-            const pv = verdict(findings);
-            return (
-              <button
-                key={p.id}
-                type="button"
-                className="card"
-                style={{ textAlign: "left", cursor: "pointer", borderColor: p.id === panel.id ? "var(--accent)" : undefined, borderWidth: p.id === panel.id ? 2 : 1 }}
-                onClick={() => setPanelId(p.id)}
-              >
-                <div className="eyebrow">{p.role === "existing" ? "Existant" : "Nouveau"}</div>
-                <h3>{p.name}</h3>
-                <div className="counts" style={{ marginTop: 8 }}>
-                  {SEVERITY_ORDER.map((s) => (
-                    <span key={s} className="chip" data-sev={pv.counts[s] ? s : undefined}>
-                      {pv.counts[s]} {SEVERITY_LABEL[s].toLowerCase()}
-                    </span>
-                  ))}
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      )}
+      <div className="stack-lg">
+        {results.length > 1 && (
+          <div className="grid-3">
+            {results.map(({ panel: p, findings }) => {
+              const pv = verdict(findings);
+              const active = p.id === panel.id;
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  className="card"
+                  onClick={() => setPanelId(p.id)}
+                  style={{
+                    textAlign: "left",
+                    cursor: "pointer",
+                    padding: 16,
+                    display: "flex",
+                    gap: 14,
+                    alignItems: "center",
+                    borderColor: active ? "var(--brand)" : undefined,
+                    boxShadow: active ? "var(--ring)" : undefined,
+                  }}
+                >
+                  <ScoreRing value={complianceScore(findings)} size={58} label="" />
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div className="row" style={{ flexWrap: "nowrap" }}>
+                      <b style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</b>
+                      <Badge tone={p.role === "new" ? "brand" : "neutral"} plain>
+                        {p.role === "new" ? "Nouveau" : "Existant"}
+                      </Badge>
+                    </div>
+                    <p className="muted small" style={{ marginTop: 4 }}>
+                      {pv.counts.danger} danger · {pv.counts.nonconforme} non conforme · {pv.counts.avertissement} à vérifier
+                    </p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
 
-      <section className="card verdict">
-        <div className="verdict-seal" data-status={v.status}>
-          {STATUS_TEXT[v.status]}
-          <small>NF C 15-100</small>
-        </div>
-        <div className="stack">
-          <h3>{panel.name}</h3>
-          <p>
-            {v.status === "dangereux" &&
-              "Ce tableau présente des risques pour la sécurité des personnes ou des biens. Commencez par les points marqués « Danger »."}
-            {v.status === "a-corriger" && "Ce tableau n'est pas conforme à la norme actuelle, sans danger immédiat identifié."}
-            {v.status === "conforme" && "Aucune non-conformité détectée d'après les informations saisies."}
-          </p>
-          <div className="row">
-            <button type="button" className="btn small" onClick={() => onAsk(`Fais le point sur la conformité de « ${panel.name} » et dis-moi par quoi commencer.`)}>
-              Demander un avis à l'assistant
-            </button>
-            <button type="button" className="btn small ghost" onClick={() => openPanel(panel.id)}>
-              Ouvrir le tableau
+        <section className="card" style={{ padding: 24, display: "flex", gap: 24, alignItems: "center", flexWrap: "wrap" }}>
+          <ScoreRing value={complianceScore(current.findings)} />
+          <div className="stack" style={{ flex: 1, minWidth: 240, gap: 8 }}>
+            <div className="row">
+              <h2 style={{ fontSize: "1.3rem" }}>{panel.name}</h2>
+              <Badge tone={status.tone}>{status.label}</Badge>
+            </div>
+            <p className="muted">{status.text}</p>
+            <div className="row" style={{ marginTop: 4 }}>
+              {SEVERITY_ORDER.map((s) => (
+                <Badge key={s} tone={v.counts[s] ? s : "neutral"}>
+                  {v.counts[s]} {SEVERITY_LABEL[s].toLowerCase()}
+                </Badge>
+              ))}
+            </div>
+          </div>
+          <div className="stack" style={{ gap: 8 }}>
+            <button type="button" className="btn" onClick={() => openPanel(panel.id)}>
+              <IconPanel size={16} /> Ouvrir le tableau
             </button>
           </div>
-          <p className="muted" style={{ fontSize: "0.8rem" }}>
-            L'analyse porte sur ce que vous avez décrit. Elle ne remplace ni un diagnostic électrique ni l'attestation Consuel.
-          </p>
-        </div>
-      </section>
-
-      <div className="segmented" role="group" aria-label="Filtrer par gravité">
-        <button type="button" aria-pressed={filter === "all"} onClick={() => setFilter("all")}>
-          Tout ({current.findings.length})
-        </button>
-        {SEVERITY_ORDER.map((s) => (
-          <button key={s} type="button" aria-pressed={filter === s} onClick={() => setFilter(s)}>
-            {SEVERITY_LABEL[s]} ({v.counts[s]})
-          </button>
-        ))}
-      </div>
-
-      <div className="findings-list">
-        {shown.map((f) => (
-          <FindingCard
-            key={f.id}
-            finding={f}
-            onLocate={f.deviceIds.length ? () => locate(panel, f.deviceIds[0]) : undefined}
-            onAsk={() => onAsk(`Explique-moi ce problème sur « ${panel.name} » et comment le corriger concrètement : « ${f.title} ».`)}
-          />
-        ))}
-        {shown.length === 0 && <p className="muted">Rien à signaler dans cette catégorie.</p>}
-      </div>
-
-      {panel.notes && panel.notes.length > 0 && (
-        <section className="card stack">
-          <h3>Travaux prévus par la génération</h3>
-          <ul className="notes-list">
-            {panel.notes.map((n, i) => (
-              <li key={i}>{n}</li>
-            ))}
-          </ul>
         </section>
-      )}
+
+        <div className="row">
+          <div className="segmented" role="group" aria-label="Filtrer par gravité">
+            <button type="button" aria-pressed={filter === "all"} onClick={() => setFilter("all")}>
+              Tous <span className="count">{current.findings.length}</span>
+            </button>
+            {SEVERITY_ORDER.map((s) => (
+              <button key={s} type="button" aria-pressed={filter === s} onClick={() => setFilter(s)}>
+                {SEVERITY_LABEL[s]} <span className="count">{v.counts[s]}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="findings">
+          {shown.map((f) => (
+            <FindingCard
+              key={f.id}
+              finding={f}
+              onLocate={f.deviceIds.length ? () => locate(panel, f.deviceIds[0]) : undefined}
+              onAsk={() => onAsk(`Explique-moi ce problème sur « ${panel.name} » et comment le corriger concrètement : « ${f.title} ».`)}
+            />
+          ))}
+          {shown.length === 0 && (
+            <div className="card empty">
+              <span className="empty-icon">
+                <IconCheck />
+              </span>
+              <h3>Rien à signaler</h3>
+              <p>Aucun constat dans cette catégorie.</p>
+            </div>
+          )}
+        </div>
+
+        <p className="muted xsmall">
+          L'analyse porte sur ce que vous avez décrit. Elle ne remplace ni un diagnostic électrique ni l'attestation de conformité Consuel.
+        </p>
+      </div>
     </div>
   );
 }

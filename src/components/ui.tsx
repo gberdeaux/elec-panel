@@ -1,17 +1,34 @@
 import { type ReactNode, useEffect, useMemo } from "react";
+import { create } from "zustand";
 import { SEVERITY_LABEL, analyzePanel } from "../domain/analysis";
 import type { Finding, House, Panel, Severity } from "../domain/types";
+import { IconBook, IconCheck, IconChevronRight, IconClose } from "./icons";
 
 export function useFindings(panel: Panel | undefined, house: House): Finding[] {
   return useMemo(() => (panel ? analyzePanel(panel, house) : []), [panel, house]);
 }
 
-export function SeverityChip({ severity, children }: { severity: Severity | "ok"; children?: ReactNode }) {
+/** Score indicatif sur 100 : chaque constat retire des points selon sa gravité. */
+export function complianceScore(findings: Finding[]): number {
+  const penalty = findings.reduce(
+    (s, f) => s + (f.severity === "danger" ? 14 : f.severity === "nonconforme" ? 6 : f.severity === "avertissement" ? 2 : 0),
+    0,
+  );
+  return Math.max(0, 100 - penalty);
+}
+
+export type Tone = Severity | "ok" | "brand" | "neutral";
+
+export function Badge({ tone = "neutral", children, plain }: { tone?: Tone; children: ReactNode; plain?: boolean }) {
   return (
-    <span className="chip" data-sev={severity}>
-      {children ?? (severity === "ok" ? "Conforme" : SEVERITY_LABEL[severity])}
+    <span className={`badge${plain ? " plain" : ""}`} data-tone={tone}>
+      {children}
     </span>
   );
+}
+
+export function SeverityBadge({ severity }: { severity: Severity }) {
+  return <Badge tone={severity}>{SEVERITY_LABEL[severity]}</Badge>;
 }
 
 export function FindingCard({
@@ -27,42 +44,63 @@ export function FindingCard({
 }) {
   return (
     <article className="finding" data-sev={finding.severity}>
-      <div className="row">
-        <SeverityChip severity={finding.severity} />
-        <h4 style={{ flex: 1, minWidth: 180 }}>{finding.title}</h4>
+      <div className="finding-body">
+        <div className="row" style={{ alignItems: "flex-start", flexWrap: "nowrap" }}>
+          <div className="finding-title" style={{ flex: 1 }}>
+            {finding.title}
+          </div>
+          <SeverityBadge severity={finding.severity} />
+        </div>
+        <p className="finding-detail">{finding.detail}</p>
+        <details open={open}>
+          <summary>
+            <IconChevronRight size={14} /> Ce que dit la norme
+          </summary>
+          <div className="finding-norm">
+            <span className="ref">
+              <IconBook size={13} /> {finding.normRef}
+            </span>
+            {finding.norm}
+          </div>
+        </details>
+        <div className="finding-fix">
+          <IconCheck size={16} />
+          <span>{finding.fix}</span>
+        </div>
+        {(onLocate || onAsk) && (
+          <div className="row" style={{ marginTop: 2 }}>
+            {onLocate && (
+              <button type="button" className="btn btn-sm" onClick={onLocate}>
+                Voir sur le tableau
+              </button>
+            )}
+            {onAsk && (
+              <button type="button" className="btn btn-sm btn-ghost" onClick={onAsk}>
+                Demander à l'assistant
+              </button>
+            )}
+          </div>
+        )}
       </div>
-      <p className="muted" style={{ fontSize: "0.88rem" }}>
-        {finding.detail}
-      </p>
-      <details open={open}>
-        <summary>Ce que dit la norme</summary>
-        <div className="norm-box">
-          <span className="ref">{finding.normRef}</span>
-          {finding.norm}
-        </div>
-      </details>
-      <p className="fix">
-        <b>Mise en conformité :</b> {finding.fix}
-      </p>
-      {(onLocate || onAsk) && (
-        <div className="row">
-          {onLocate && (
-            <button type="button" className="btn small" onClick={onLocate}>
-              Voir sur le tableau
-            </button>
-          )}
-          {onAsk && (
-            <button type="button" className="btn small ghost" onClick={onAsk}>
-              Demander à l'assistant
-            </button>
-          )}
-        </div>
-      )}
     </article>
   );
 }
 
-export function Modal({ title, onClose, children, footer }: { title: string; onClose: () => void; children: ReactNode; footer?: ReactNode }) {
+export function Modal({
+  title,
+  subtitle,
+  onClose,
+  children,
+  footer,
+  size,
+}: {
+  title: string;
+  subtitle?: ReactNode;
+  onClose: () => void;
+  children: ReactNode;
+  footer?: ReactNode;
+  size?: "sm";
+}) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
@@ -70,17 +108,42 @@ export function Modal({ title, onClose, children, footer }: { title: string; onC
   }, [onClose]);
   return (
     <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="modal" role="dialog" aria-modal="true" aria-label={title}>
-        <div className="row">
-          <h3 style={{ flex: 1 }}>{title}</h3>
-          <button type="button" className="btn ghost icon" onClick={onClose} aria-label="Fermer">
-            ✕
+      <div className={`modal${size === "sm" ? " modal-sm" : ""}`} role="dialog" aria-modal="true" aria-label={title}>
+        <div className="modal-head">
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <h2>{title}</h2>
+            {subtitle && <p className="sub">{subtitle}</p>}
+          </div>
+          <button type="button" className="btn btn-ghost btn-icon btn-sm" onClick={onClose} aria-label="Fermer">
+            <IconClose size={18} />
           </button>
         </div>
-        {children}
-        {footer && <div className="row" style={{ justifyContent: "flex-end" }}>{footer}</div>}
+        <div className="modal-body">{children}</div>
+        {footer && <div className="modal-foot">{footer}</div>}
       </div>
     </div>
+  );
+}
+
+export function Field({ label, hint, children, full }: { label: string; hint?: ReactNode; children: ReactNode; full?: boolean }) {
+  return (
+    <label className={`field${full ? " full" : ""}`}>
+      <span className="label">{label}</span>
+      {children}
+      {hint && <span className="hint">{hint}</span>}
+    </label>
+  );
+}
+
+export function Switch({ id, checked, onChange, label, hint }: { id: string; checked: boolean; onChange: (v: boolean) => void; label: string; hint?: string }) {
+  return (
+    <label className="switch" htmlFor={id}>
+      <input id={id} type="checkbox" role="switch" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+      <span>
+        <b>{label}</b>
+        {hint && <span>{hint}</span>}
+      </span>
+    </label>
   );
 }
 
@@ -124,7 +187,55 @@ export function NumberInput({
   );
 }
 
-/** Rendu Markdown minimal et sûr (titres, listes, gras, italique, code). */
+export function ScoreRing({ value, size = 120, label = "/ 100" }: { value: number; size?: number; label?: string }) {
+  const r = size / 2 - 8;
+  const c = 2 * Math.PI * r;
+  const color = value >= 90 ? "var(--ok)" : value >= 60 ? "var(--warn)" : "var(--danger)";
+  return (
+    <div className="score-ring" style={{ width: size, height: size }}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden="true">
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--surface-3)" strokeWidth="9" />
+        {value > 0 && <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth="9" strokeLinecap="round" strokeDasharray={`${(value / 100) * c} ${c}`} />}
+      </svg>
+      <div className="score-value" style={{ fontSize: size < 100 ? "1.25rem" : undefined }}>
+        {value}
+        <small>{label}</small>
+      </div>
+    </div>
+  );
+}
+
+/* ---------- Notifications ---------- */
+interface ToastState {
+  toasts: { id: number; text: string }[];
+  push(text: string): void;
+}
+let toastId = 0;
+export const useToasts = create<ToastState>((set) => ({
+  toasts: [],
+  push: (text) => {
+    const id = ++toastId;
+    set((s) => ({ toasts: [...s.toasts, { id, text }] }));
+    setTimeout(() => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })), 3200);
+  },
+}));
+export const toast = (text: string) => useToasts.getState().push(text);
+
+export function Toasts() {
+  const toasts = useToasts((s) => s.toasts);
+  return (
+    <div className="toasts" role="status" aria-live="polite">
+      {toasts.map((t) => (
+        <div key={t.id} className="toast">
+          <IconCheck size={16} />
+          {t.text}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ---------- Markdown minimal et sûr ---------- */
 export function Markdown({ text }: { text: string }) {
   const blocks = useMemo(() => parseMarkdown(text), [text]);
   return <div className="md">{blocks}</div>;
@@ -140,7 +251,7 @@ function inline(text: string, key: string): ReactNode[] {
     const tok = m[0];
     const k = `${key}-${i++}`;
     if (tok.startsWith("**")) parts.push(<strong key={k}>{tok.slice(2, -2)}</strong>);
-    else if (tok.startsWith("`")) parts.push(<code key={k} className="mono">{tok.slice(1, -1)}</code>);
+    else if (tok.startsWith("`")) parts.push(<code key={k}>{tok.slice(1, -1)}</code>);
     else if (tok.startsWith("[")) {
       const [, label, href] = tok.match(/\[([^\]]+)\]\(([^)]+)\)/)!;
       parts.push(

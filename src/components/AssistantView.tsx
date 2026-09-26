@@ -5,12 +5,13 @@ import { readPanelFromPhoto } from "../ai/photo";
 import type { Panel } from "../domain/types";
 import { inClaudeViewer } from "../store/claude-runtime";
 import { useStore } from "../store/store";
-import { Markdown } from "./ui";
+import { IconBolt, IconCamera, IconSend, IconSparkles, IconStop } from "./icons";
+import { Field, Markdown, toast } from "./ui";
 
 const MAX_TURNS = 16;
 
 export function AssistantView({ pending, onPendingHandled }: { pending?: string; onPendingHandled: () => void }) {
-  const project = useStore((s) => s.project);
+  const chat = useStore((s) => s.project.chat);
   const setChat = useStore((s) => s.setChat);
   const createPanelFrom = useStore((s) => s.createPanelFrom);
   const [apiKey, setApiKey] = useState(readApiKey);
@@ -22,7 +23,7 @@ export function AssistantView({ pending, onPendingHandled }: { pending?: string;
   const [error, setError] = useState<string>();
   const [images, setImages] = useState(false);
   const ctl = useRef<AbortController>(undefined);
-  const endRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let alive = true;
@@ -73,150 +74,194 @@ export function AssistantView({ pending, onPendingHandled }: { pending?: string;
   }, [pending, assistant]);
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ block: "end", behavior: "smooth" });
-  }, [project.chat.length, streaming]);
+    const el = scrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [chat.length, streaming]);
 
   return (
-    <div className="stack" style={{ gap: 16 }}>
-      <div>
-        <div className="eyebrow">Claude · spécialiste NF C 15-100</div>
-        <h2>Assistant</h2>
+    <div>
+      <div className="page-head">
+        <div>
+          <h1>Assistant IA</h1>
+          <p className="sub">Claude connaît vos tableaux, les circuits décrits, les constats et la liste de matériel. Posez vos questions en langage courant.</p>
+        </div>
+        {chat.length > 0 && (
+          <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => setChat([])}>
+            Nouvelle conversation
+          </button>
+        )}
       </div>
-      <div className="assistant-layout">
-        <section className="stack">
-          {assistant === undefined && <p className="muted">Connexion à l'assistant…</p>}
+
+      <div className="chat-layout">
+        <section className="card chat-card">
+          {assistant === undefined && (
+            <div className="empty">
+              <div className="typing">
+                <span />
+                <span />
+                <span />
+              </div>
+              <p>Connexion à l'assistant…</p>
+            </div>
+          )}
           {assistant === null && IS_ARTIFACT && (
-            <div className="card stack">
+            <div className="empty">
+              <span className="empty-icon">
+                <IconSparkles />
+              </span>
               <h3>Assistant indisponible</h3>
-              <p>Ouvrez cette page depuis claude.ai, connecté à votre compte, pour utiliser l'assistant. Le reste de l'application fonctionne normalement.</p>
+              <p>Ouvrez cette page depuis claude.ai, connecté à votre compte, pour utiliser l'assistant.</p>
             </div>
           )}
           {assistant === null && !IS_ARTIFACT && (
             <form
-              className="card stack"
+              className="empty"
               onSubmit={(e) => {
                 e.preventDefault();
                 storeApiKey(keyDraft.trim());
                 setApiKey(keyDraft.trim());
               }}
             >
+              <span className="empty-icon">
+                <IconSparkles />
+              </span>
               <h3>Connecter Claude</h3>
-              <p>
-                Hors de claude.ai, l'assistant utilise l'API Claude avec votre propre clé (créée sur console.anthropic.com). Elle reste dans ce
-                navigateur et n'est envoyée qu'à l'API Anthropic.
+              <p style={{ maxWidth: 460 }}>
+                En dehors de claude.ai, l'assistant utilise l'API Claude avec votre propre clé, créée sur console.anthropic.com. Elle reste dans ce
+                navigateur.
               </p>
-              <label className="field">
-                <span>Clé API Anthropic</span>
-                <input id="api-key" className="input mono" type="password" autoComplete="off" value={keyDraft} onChange={(e) => setKeyDraft(e.target.value)} placeholder="sk-ant-…" />
-              </label>
-              <div className="row">
-                <button type="submit" className="btn primary" disabled={!keyDraft.trim()}>
-                  Enregistrer la clé
+              <div className="row" style={{ width: "min(460px, 100%)", flexWrap: "nowrap" }}>
+                <input id="api-key" className="input mono" type="password" autoComplete="off" value={keyDraft} onChange={(e) => setKeyDraft(e.target.value)} placeholder="sk-ant-…" aria-label="Clé API Anthropic" />
+                <button type="submit" className="btn btn-primary" disabled={!keyDraft.trim()}>
+                  Connecter
                 </button>
               </div>
-              <p className="muted" style={{ fontSize: "0.82rem" }}>
-                Le moteur de règles (pages Tableau et Conformité) fonctionne sans assistant.
-              </p>
+              <p className="xsmall">Le moteur de règles, la génération et la liste de matériel fonctionnent sans assistant.</p>
             </form>
           )}
 
-          <div className="chat" aria-live="polite">
-            {project.chat.length === 0 && !busy && assistant && (
-              <div className="card stack">
-                <p>
-                  Posez vos questions sur votre installation. L'assistant connaît vos tableaux, les circuits décrits, les constats du moteur de règles et la
-                  liste de matériel.
-                </p>
-              </div>
-            )}
-            {project.chat.map((t, i) => (
-              <div key={i} className={`bubble ${t.role}`}>
-                {t.role === "assistant" ? <Markdown text={t.content} /> : t.content}
-              </div>
-            ))}
-            {busy && (
-              <div className="bubble assistant">{streaming ? <Markdown text={streaming} /> : <span className="thinking">Claude réfléchit…</span>}</div>
-            )}
-            {error && <p className="error-text">{error}</p>}
-            <div ref={endRef} />
-          </div>
-
           {assistant && (
-            <form
-              className="composer"
-              onSubmit={(e) => {
-                e.preventDefault();
-                void send(draft);
-              }}
-            >
-              <label htmlFor="chat-input" className="sr-only">
-                Votre question
-              </label>
-              <textarea
-                id="chat-input"
-                className="input"
-                value={draft}
-                placeholder="Ex. : mon lave-linge peut-il rester sur le même différentiel que le four ?"
-                onChange={(e) => setDraft(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    void send(draft);
-                  }
+            <>
+              <div className="chat-scroll" ref={scrollRef} aria-live="polite">
+                {chat.length === 0 && !busy && (
+                  <div className="empty" style={{ margin: "auto" }}>
+                    <span className="empty-icon">
+                      <IconSparkles />
+                    </span>
+                    <h3>Comment puis-je vous aider ?</h3>
+                    <p>Choisissez une question à droite ou écrivez la vôtre.</p>
+                  </div>
+                )}
+                {chat.map((t, i) =>
+                  t.role === "user" ? (
+                    <div key={i} className="msg user">
+                      <div className="msg-bubble">{t.content}</div>
+                    </div>
+                  ) : (
+                    <div key={i} className="msg">
+                      <span className="msg-avatar">
+                        <IconBolt size={15} />
+                      </span>
+                      <div className="msg-bubble">
+                        <Markdown text={t.content} />
+                      </div>
+                    </div>
+                  ),
+                )}
+                {busy && (
+                  <div className="msg">
+                    <span className="msg-avatar">
+                      <IconBolt size={15} />
+                    </span>
+                    <div className="msg-bubble">
+                      {streaming ? (
+                        <Markdown text={streaming} />
+                      ) : (
+                        <div className="typing" aria-label="Claude réfléchit">
+                          <span />
+                          <span />
+                          <span />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+                {error && <p className="error-text">{error}</p>}
+              </div>
+              <form
+                className="composer"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void send(draft);
                 }}
-              />
-              {busy ? (
-                <button type="button" className="btn" onClick={() => ctl.current?.abort()}>
-                  Arrêter
-                </button>
-              ) : (
-                <button type="submit" className="btn primary" disabled={!draft.trim()}>
-                  Envoyer
-                </button>
-              )}
-            </form>
+              >
+                <label htmlFor="chat-input" className="sr-only">
+                  Votre question
+                </label>
+                <textarea
+                  id="chat-input"
+                  className="input"
+                  rows={1}
+                  value={draft}
+                  placeholder="Ex. : mon lave-linge peut-il rester sur le même différentiel que le four ?"
+                  onChange={(e) => setDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      void send(draft);
+                    }
+                  }}
+                />
+                {busy ? (
+                  <button type="button" className="btn" onClick={() => ctl.current?.abort()}>
+                    <IconStop size={15} /> Arrêter
+                  </button>
+                ) : (
+                  <button type="submit" className="btn btn-primary btn-icon" disabled={!draft.trim()} aria-label="Envoyer">
+                    <IconSend size={17} />
+                  </button>
+                )}
+              </form>
+            </>
           )}
         </section>
 
-        <aside className="stack">
+        <aside className="stack-lg">
           {assistant && (
-            <section className="card stack">
-              <h3>Questions rapides</h3>
-              {QUICK_PROMPTS.map((q) => (
-                <button key={q.label} type="button" className="btn" style={{ justifyContent: "flex-start" }} disabled={busy} onClick={() => send(q.prompt)}>
-                  {q.label}
-                </button>
-              ))}
-              {project.chat.length > 0 && (
-                <button type="button" className="btn ghost small" disabled={busy} onClick={() => setChat([])}>
-                  Effacer la conversation
-                </button>
-              )}
+            <section className="card">
+              <div className="card-head">
+                <h3>Questions fréquentes</h3>
+              </div>
+              <div className="card-body stack" style={{ gap: 8 }}>
+                {QUICK_PROMPTS.map((q) => (
+                  <button key={q.label} type="button" className="suggestion" disabled={busy} onClick={() => send(q.prompt)}>
+                    <IconSparkles size={15} />
+                    <span>
+                      <b style={{ display: "block", fontWeight: 550 }}>{q.label}</b>
+                      <span className="muted xsmall">{q.prompt.slice(0, 78)}…</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
             </section>
           )}
           {assistant && images && <PhotoImport assistant={assistant} onCreate={createPanelFrom} />}
           {assistant?.kind === "api" && (
-            <section className="card stack">
-              <p className="muted" style={{ fontSize: "0.85rem" }}>
-                Assistant connecté avec votre clé API (modèle Claude Opus 5).
-              </p>
+            <section className="card card-body stack">
+              <p className="muted small">Connecté avec votre clé API · modèle Claude Opus 5.</p>
               <button
                 type="button"
-                className="btn small"
+                className="btn btn-sm"
                 onClick={() => {
                   storeApiKey("");
                   setApiKey("");
                 }}
               >
-                Oublier la clé
+                Déconnecter la clé
               </button>
             </section>
           )}
-          {inClaudeViewer() && (
-            <p className="muted" style={{ fontSize: "0.82rem" }}>
-              Sur claude.ai, l'assistant utilise votre compte Claude : la première question vous demande l'autorisation.
-            </p>
-          )}
+          {inClaudeViewer() && <p className="muted xsmall">Sur claude.ai, l'assistant utilise votre compte Claude : la première question demande votre accord.</p>}
         </aside>
       </div>
     </div>
@@ -226,53 +271,59 @@ export function AssistantView({ pending, onPendingHandled }: { pending?: string;
 function PhotoImport({ assistant, onCreate }: { assistant: Assistant; onCreate: (p: Panel) => void }) {
   const [state, setState] = useState<{ busy?: boolean; error?: string; result?: { panel: Panel; remarks?: string } }>({});
   return (
-    <section className="card stack">
-      <h3>Lire mon tableau sur une photo</h3>
-      <p className="muted" style={{ fontSize: "0.85rem" }}>
-        Photographiez le tableau de face, capot ouvert et bien éclairé. L'assistant relève les appareils rangée par rangée ; vous vérifiez ensuite
-        chaque appareil.
-      </p>
-      <label className="btn" style={{ cursor: state.busy ? "wait" : "pointer" }}>
-        {state.busy ? "Lecture de la photo…" : "Choisir une photo"}
-        <input
-          id="photo-input"
-          type="file"
-          accept="image/jpeg,image/png,image/webp"
-          className="sr-only"
-          disabled={state.busy}
-          onChange={async (e) => {
-            const file = e.target.files?.[0];
-            e.target.value = "";
-            if (!file) return;
-            setState({ busy: true });
-            try {
-              const image = await shrinkImage(file);
-              setState({ result: await readPanelFromPhoto(assistant, image) });
-            } catch (err) {
-              setState({ error: (err as Error).message || "La photo n'a pas pu être lue." });
-            }
-          }}
-        />
-      </label>
-      {state.error && <p className="error-text">{state.error}</p>}
-      {state.result && (
-        <div className="stack">
-          <p>
-            <b>{state.result.panel.rows.flat().length}</b> appareils reconnus sur <b>{state.result.panel.rows.length}</b> rangée(s).
-          </p>
-          {state.result.remarks && <p className="muted">{state.result.remarks}</p>}
-          <button
-            type="button"
-            className="btn primary"
-            onClick={() => {
-              onCreate(state.result!.panel);
-              setState({});
-            }}
-          >
-            Créer le tableau existant
-          </button>
+    <section className="card">
+      <div className="card-head">
+        <div>
+          <h3>Lire mon tableau sur une photo</h3>
+          <p className="sub">Capot ouvert, de face, bien éclairé.</p>
         </div>
-      )}
+      </div>
+      <div className="card-body stack">
+        <label className={`btn${state.busy ? "" : " btn-primary"}`} style={{ cursor: state.busy ? "wait" : "pointer" }}>
+          <IconCamera size={16} /> {state.busy ? "Lecture en cours…" : "Choisir une photo"}
+          <input
+            id="photo-input"
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            className="sr-only"
+            disabled={state.busy}
+            onChange={async (e) => {
+              const file = e.target.files?.[0];
+              e.target.value = "";
+              if (!file) return;
+              setState({ busy: true });
+              try {
+                const image = await shrinkImage(file);
+                setState({ result: await readPanelFromPhoto(assistant, image) });
+              } catch (err) {
+                setState({ error: (err as Error).message || "La photo n'a pas pu être lue." });
+              }
+            }}
+          />
+        </label>
+        {state.error && <p className="error-text">{state.error}</p>}
+        {state.result && (
+          <div className="stack">
+            <Field label="Résultat">
+              <p className="small">
+                <b>{state.result.panel.rows.flat().length}</b> appareils reconnus sur <b>{state.result.panel.rows.length}</b> rangée(s).
+              </p>
+            </Field>
+            {state.result.remarks && <p className="muted small">{state.result.remarks}</p>}
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => {
+                onCreate(state.result!.panel);
+                setState({});
+                toast("Tableau créé depuis la photo");
+              }}
+            >
+              Créer le tableau existant
+            </button>
+          </div>
+        )}
+      </div>
     </section>
   );
 }

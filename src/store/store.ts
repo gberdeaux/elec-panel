@@ -6,7 +6,7 @@ import { findDevice, newId } from "../domain/panel";
 import { emptyPanel, sampleProject } from "../domain/sample";
 import type { Brand, ChatTurn, Device, Enclosure, House, InventoryEntry, Panel, PanelRole, Project } from "../domain/types";
 
-export type View = "house" | "panel" | "analysis" | "materials" | "assistant";
+export type View = "overview" | "house" | "panel" | "analysis" | "materials" | "assistant";
 
 interface State {
   project: Project;
@@ -82,7 +82,7 @@ export const useStore = create<State>((set, get) => {
     project: sampleProject(),
     past: [],
     future: [],
-    view: "panel",
+    view: "overview",
     selectedDeviceId: undefined,
     lastNotes: [],
 

@@ -1,13 +1,14 @@
 import { useState } from "react";
-import { verdict, worstSeverity } from "../domain/analysis";
+import { verdict } from "../domain/analysis";
 import { type CatalogItem, DEVICE_BRANDS, deviceFromCatalog, findCatalogItem } from "../domain/catalog";
 import { freeModules, panelCapacity } from "../domain/panel";
 import { BRANDS, type Brand, type Panel } from "../domain/types";
 import { useActivePanel, useStore } from "../store/store";
 import { CatalogPicker } from "./CatalogPicker";
+import { IconCheck, IconDuplicate, IconEye, IconTrash, IconWand } from "./icons";
 import { Inspector } from "./Inspector";
-import { GROUP_COLORS, PanelVisual } from "./PanelVisual";
-import { FindingCard, Modal, NumberInput, SeverityChip, useFindings } from "./ui";
+import { GROUP_COLORS, PanelVisual, type PanelViewMode } from "./PanelVisual";
+import { Badge, Field, FindingCard, Modal, NumberInput, complianceScore, toast, useFindings } from "./ui";
 
 export function PanelView({ onAsk }: { onAsk: (q: string) => void }) {
   const panel = useActivePanel();
@@ -26,14 +27,17 @@ export function PanelView({ onAsk }: { onAsk: (q: string) => void }) {
   const [addingRow, setAddingRow] = useState<number>();
   const [generating, setGenerating] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(false);
+  const [mode, setMode] = useState<PanelViewMode>("front");
 
   const selected = panel.rows.flat().find((d) => d.id === selectedId);
   const v = verdict(findings);
   const capacity = panelCapacity(panel);
   const free = freeModules(panel);
+  const used = capacity - free;
   const rcdCount = panel.rows.flat().filter((d) => d.kind === "rcd").length;
+  const circuitCount = panel.rows.flat().filter((d) => d.kind === "mcb" || d.kind === "rcbo" || d.kind === "fuse").length;
   const sources = panels.filter((p) => p.role === "existing");
-  const notes = panel.notes?.length ? panel.notes : [];
+  const empty = panel.rows.flat().length === 0;
 
   const setEnclosureSize = (rows: number, modulesPerRow: number) => {
     const item = findCatalogItem(panel.enclosure.brand, { kind: "enclosure", rows, modulesPerRow });
@@ -42,171 +46,182 @@ export function PanelView({ onAsk }: { onAsk: (q: string) => void }) {
 
   return (
     <div>
-      <div className="panel-head">
-        <div style={{ flex: 1, minWidth: 240 }}>
-          <div className="eyebrow">{panel.role === "existing" ? "Tableau existant" : "Nouveau tableau"}</div>
+      <div className="page-head">
+        <div style={{ flex: 1, minWidth: 260 }}>
+          <div className="row" style={{ marginBottom: 6 }}>
+            <Badge tone={panel.role === "new" ? "brand" : "neutral"} plain>
+              {panel.role === "new" ? "Nouveau tableau" : "Tableau existant"}
+            </Badge>
+            {!empty && (
+              <Badge tone={v.status === "conforme" ? "ok" : v.status === "dangereux" ? "danger" : "nonconforme"}>
+                {v.status === "conforme" ? "Conforme" : v.status === "dangereux" ? "Dangereux" : "À mettre en conformité"}
+              </Badge>
+            )}
+          </div>
           <input
             id="panel-name"
-            className="panel-title-input"
+            className="input"
             value={panel.name}
             aria-label="Nom du tableau"
             onChange={(e) => updatePanel(panel.id, { name: e.target.value })}
+            style={{ fontSize: "1.6rem", fontWeight: 650, letterSpacing: "-0.025em", border: "1px solid transparent", boxShadow: "none", background: "transparent", padding: "2px 6px", marginLeft: -7, maxWidth: 520 }}
           />
         </div>
         <div className="row">
-          {panel.role === "existing" ? (
-            <button type="button" className="btn primary" onClick={() => setGenerating(true)}>
-              Générer le tableau conforme
-            </button>
-          ) : (
-            sources.length > 0 && (
-              <button type="button" className="btn" onClick={() => setGenerating(true)}>
-                Régénérer depuis l'existant
-              </button>
-            )
-          )}
-          <button type="button" className="btn" onClick={() => duplicatePanel(panel.id)}>
-            Copier en nouveau tableau
+          <button type="button" className="btn btn-sm" onClick={() => duplicatePanel(panel.id)}>
+            <IconDuplicate size={15} /> Dupliquer
           </button>
           {panels.length > 1 &&
             (confirmRemove ? (
               <>
-                <button type="button" className="btn danger" onClick={() => removePanel(panel.id)}>
+                <button type="button" className="btn btn-sm btn-danger-solid" onClick={() => removePanel(panel.id)}>
                   Supprimer définitivement
                 </button>
-                <button type="button" className="btn ghost" onClick={() => setConfirmRemove(false)}>
+                <button type="button" className="btn btn-sm btn-ghost" onClick={() => setConfirmRemove(false)}>
                   Annuler
                 </button>
               </>
             ) : (
-              <button type="button" className="btn ghost danger" onClick={() => setConfirmRemove(true)}>
-                Supprimer ce tableau
+              <button type="button" className="btn btn-sm btn-ghost btn-danger" onClick={() => setConfirmRemove(true)}>
+                <IconTrash size={15} /> Supprimer
               </button>
             ))}
+          {(panel.role === "existing" || sources.length > 0) && (
+            <button type="button" className="btn btn-primary" onClick={() => setGenerating(true)}>
+              <IconWand size={16} /> {panel.role === "existing" ? "Générer le tableau conforme" : "Régénérer depuis l'existant"}
+            </button>
+          )}
         </div>
       </div>
 
-      <div className="toolbar">
-        <label className="field">
-          <span>Rôle</span>
-          <select id="panel-role" className="input" value={panel.role} onChange={(e) => updatePanel(panel.id, { role: e.target.value as Panel["role"] })}>
-            <option value="existing">Existant</option>
-            <option value="new">Nouveau</option>
-          </select>
-        </label>
-        <label className="field">
-          <span>Marque du coffret</span>
-          <select
-            id="panel-brand"
-            className="input"
-            value={panel.enclosure.brand}
-            onChange={(e) => {
-              const brand = e.target.value as Brand;
-              if (panel.role === "new" && DEVICE_BRANDS.includes(brand)) rebrand(panel.id, brand);
-              else {
-                const item = findCatalogItem(brand, { kind: "enclosure", rows: panel.enclosure.rows, modulesPerRow: panel.enclosure.modulesPerRow });
-                updateEnclosure(panel.id, { brand, catalogId: item?.id, ref: item?.ref, label: item?.label });
-              }
-            }}
-          >
-            {BRANDS.map((b) => (
-              <option key={b}>{b}</option>
-            ))}
-          </select>
-        </label>
-        <label className="field">
-          <span>Modules par rangée</span>
-          <select
-            id="panel-modules"
-            className="input"
-            value={panel.enclosure.modulesPerRow}
-            onChange={(e) => setEnclosureSize(panel.enclosure.rows, Number(e.target.value))}
-          >
-            {[13, 18].map((m) => (
-              <option key={m} value={m}>
-                {m}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="field">
-          <span>Rangées</span>
-          <select id="panel-rows" className="input" value={panel.enclosure.rows} onChange={(e) => setEnclosureSize(Number(e.target.value), panel.enclosure.modulesPerRow)}>
-            {[1, 2, 3, 4, 5, 6].map((r) => (
-              <option key={r} value={r} disabled={r < panel.rows.filter((row) => row.length).length}>
-                {r}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="field">
-          <span>Manettes / sol (m)</span>
-          <NumberInput id="panel-height" value={panel.controlHeightM} min={0} max={3} step={0.05} onChange={(v) => updatePanel(panel.id, { controlHeightM: v })} />
-        </label>
-        {panel.role === "new" && (
-          <p className="muted" style={{ fontSize: "0.8rem", maxWidth: 260 }}>
-            Changer la marque d'un nouveau tableau remplace tous ses appareils par leurs équivalents du catalogue.
-          </p>
-        )}
-      </div>
+      <div className="workspace">
+        <div className="stack-lg">
+          <section className="card" style={{ overflow: "hidden" }}>
+            <div className="toolbar">
+              <div className="segmented" role="group" aria-label="Vue du tableau">
+                <button type="button" aria-pressed={mode === "front"} onClick={() => setMode("front")}>
+                  Capot fermé
+                </button>
+                <button type="button" aria-pressed={mode === "open"} onClick={() => setMode("open")}>
+                  <IconEye size={15} /> Capot ouvert
+                </button>
+              </div>
+              <span className="spacer" />
+              <label className="field">
+                <span className="label">Rôle</span>
+                <select id="panel-role" className="input" value={panel.role} onChange={(e) => updatePanel(panel.id, { role: e.target.value as Panel["role"] })}>
+                  <option value="existing">Existant</option>
+                  <option value="new">Nouveau</option>
+                </select>
+              </label>
+              <label className="field">
+                <span className="label">Marque</span>
+                <select
+                  id="panel-brand"
+                  className="input"
+                  value={panel.enclosure.brand}
+                  onChange={(e) => {
+                    const brand = e.target.value as Brand;
+                    if (panel.role === "new" && DEVICE_BRANDS.includes(brand)) {
+                      rebrand(panel.id, brand);
+                      toast(`Appareils convertis en ${brand}`);
+                    } else {
+                      const item = findCatalogItem(brand, { kind: "enclosure", rows: panel.enclosure.rows, modulesPerRow: panel.enclosure.modulesPerRow });
+                      updateEnclosure(panel.id, { brand, catalogId: item?.id, ref: item?.ref, label: item?.label });
+                    }
+                  }}
+                >
+                  {BRANDS.map((b) => (
+                    <option key={b}>{b}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
+                <span className="label">Coffret</span>
+                <select id="panel-rows" className="input" value={panel.enclosure.rows} onChange={(e) => setEnclosureSize(Number(e.target.value), panel.enclosure.modulesPerRow)}>
+                  {[1, 2, 3, 4, 5, 6].map((r) => (
+                    <option key={r} value={r} disabled={r < panel.rows.filter((row) => row.length).length}>
+                      {r} rangée{r > 1 ? "s" : ""}
+                    </option>
+                  ))}
+                </select>
+                <select id="panel-modules" className="input" value={panel.enclosure.modulesPerRow} onChange={(e) => setEnclosureSize(panel.enclosure.rows, Number(e.target.value))} aria-label="Modules par rangée">
+                  <option value={13}>13 modules</option>
+                  <option value={18}>18 modules</option>
+                </select>
+              </label>
+            </div>
 
-      <div className="stats">
-        <SeverityChip severity={v.status === "conforme" ? "ok" : v.status === "dangereux" ? "danger" : "nonconforme"}>
-          {v.status === "conforme" ? "Conforme" : v.status === "dangereux" ? "Dangereux" : "À mettre en conformité"}
-        </SeverityChip>
-        <span className="stat">
-          <b>{v.counts.danger + v.counts.nonconforme}</b> non-conformités
-        </span>
-        <span className="stat">
-          <b>{capacity - free}</b>/{capacity} modules · réserve <b>{capacity ? Math.round((free / capacity) * 100) : 0} %</b>
-        </span>
-        <span className="stat">
-          <b>{rcdCount}</b> différentiel{rcdCount > 1 ? "s" : ""}
-        </span>
-      </div>
+            <PanelVisual
+              panel={panel}
+              findings={findings}
+              selectedId={selectedId}
+              mode={mode}
+              onSelect={select}
+              onAdd={(row) => setAddingRow(row)}
+              onMove={(id, row, index) => moveDevice(panel.id, id, row, index)}
+            />
 
-      <div className="panel-layout">
-        <div>
-          <PanelVisual
-            panel={panel}
-            findings={findings}
-            selectedId={selectedId}
-            onSelect={select}
-            onAdd={(row) => setAddingRow(row)}
-            onMove={(id, row, index) => moveDevice(panel.id, id, row, index)}
-          />
-          <div className="legend" aria-label="Légende">
-            <span>
-              <span className="swatch" style={{ background: GROUP_COLORS[0] }} />
-              Bande de couleur : différentiel qui protège le départ
-            </span>
-            <span>
-              <span className="swatch" style={{ background: "repeating-linear-gradient(45deg, var(--danger) 0 4px, #fff 4px 7px)" }} />
-              Départ sans protection 30 mA
-            </span>
-            <span>
-              <span className="dot" data-sev="nonconforme" /> Constat sur l'appareil
-            </span>
-            <span className="muted">Glisser-déposer pour réorganiser.</span>
-          </div>
-          {notes.length > 0 && (
-            <div className="card stack" style={{ marginTop: 16 }}>
-              <h3>Travaux à prévoir</h3>
-              <ul className="notes-list">
-                {notes.map((n, i) => (
-                  <li key={i}>{n}</li>
+            <div className="stats-bar">
+              <span>
+                Occupation <b>{used}</b>/{capacity} modules{" "}
+                <span className="meter" aria-hidden="true">
+                  <span style={{ width: `${Math.min(100, (used / Math.max(capacity, 1)) * 100)}%`, background: free / Math.max(capacity, 1) < 0.2 ? "var(--nc)" : undefined }} />
+                </span>
+              </span>
+              <span>
+                Réserve <b>{capacity ? Math.round((free / capacity) * 100) : 0} %</b>
+              </span>
+              <span>
+                <b>{circuitCount}</b> départs · <b>{rcdCount}</b> différentiel{rcdCount > 1 ? "s" : ""}
+              </span>
+              <span>
+                Score <b>{complianceScore(findings)}</b>/100
+              </span>
+              <span className="spacer" />
+              <label className="field" style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <span className="label" style={{ fontWeight: 500, color: "var(--muted)", fontSize: "0.82rem" }}>
+                  Manettes à
+                </span>
+                <NumberInput id="panel-height" className="input input-sm" value={panel.controlHeightM} min={0} max={3} step={0.05} onChange={(val) => updatePanel(panel.id, { controlHeightM: val })} />
+                <span className="muted">m du sol</span>
+              </label>
+            </div>
+            <div className="legend">
+              <span>
+                <i style={{ width: 16, height: 3, borderRadius: 2, background: GROUP_COLORS[0] }} />
+                Repère sous l'étiquette : différentiel qui protège le départ
+              </span>
+              <span>
+                <i style={{ width: 16, height: 3, borderRadius: 2, background: "#d33a2f" }} />
+                Départ sans protection 30 mA
+              </span>
+              <span>Glissez-déposez les appareils pour les réorganiser, cliquez un emplacement libre pour ajouter.</span>
+            </div>
+          </section>
+
+          {panel.notes && panel.notes.length > 0 && (
+            <section className="card">
+              <div className="card-head">
+                <div>
+                  <h2>Travaux à prévoir</h2>
+                  <p className="sub">Relevés lors de la génération du tableau.</p>
+                </div>
+              </div>
+              <ul className="list-notes" style={{ padding: "4px 20px 10px" }}>
+                {panel.notes.map((n, i) => (
+                  <li key={i}>
+                    <IconCheck size={15} />
+                    <span>{n}</span>
+                  </li>
                 ))}
               </ul>
-            </div>
+            </section>
           )}
         </div>
 
-        <aside className="card side" aria-label="Détails">
-          {selected ? (
-            <Inspector panel={panel} device={selected} findings={findings} onAsk={onAsk} />
-          ) : (
-            <PanelSummary panel={panel} onSelect={select} onAsk={onAsk} />
-          )}
+        <aside className="card inspector" aria-label="Détails">
+          {selected ? <Inspector panel={panel} device={selected} findings={findings} onAsk={onAsk} /> : <PanelSummary panel={panel} onAsk={onAsk} />}
         </aside>
       </div>
 
@@ -225,37 +240,42 @@ export function PanelView({ onAsk }: { onAsk: (q: string) => void }) {
   );
 }
 
-function PanelSummary({ panel, onSelect, onAsk }: { panel: Panel; onSelect: (id?: string) => void; onAsk: (q: string) => void }) {
+function PanelSummary({ panel, onAsk }: { panel: Panel; onAsk: (q: string) => void }) {
   const house = useStore((s) => s.project.house);
+  const select = useStore((s) => s.selectDevice);
   const findings = useFindings(panel, house);
-  const worst = worstSeverity(findings);
-  const important = findings.filter((f) => f.severity === "danger" || f.severity === "nonconforme");
-  const others = findings.filter((f) => f.severity !== "danger" && f.severity !== "nonconforme");
   const [showAll, setShowAll] = useState(false);
+  const important = findings.filter((f) => f.severity === "danger" || f.severity === "nonconforme");
+  const list = showAll ? findings : important.slice(0, 5);
   return (
-    <div className="stack">
-      <div>
-        <div className="eyebrow">Conformité NF C 15-100</div>
-        <h3>{!worst ? "Aucun constat" : important.length ? `${important.length} point${important.length > 1 ? "s" : ""} à corriger` : "Conforme, avec remarques"}</h3>
-        <p className="muted" style={{ fontSize: "0.85rem" }}>
-          Cliquez sur un appareil pour décrire ce qui y est branché et voir les règles qui s'y appliquent.
-        </p>
+    <div>
+      <div className="inspector-head">
+        <div style={{ flex: 1 }}>
+          <div className="overline">Conformité NF C 15-100</div>
+          <h2 style={{ marginTop: 4 }}>{important.length ? `${important.length} point${important.length > 1 ? "s" : ""} à corriger` : "Aucune non-conformité"}</h2>
+          <p className="muted small" style={{ marginTop: 4 }}>
+            Sélectionnez un appareil pour décrire ce qui y est branché et voir les règles qui s'y appliquent.
+          </p>
+        </div>
       </div>
-      <div className="findings-list">
-        {(showAll ? [...important, ...others] : important.slice(0, 6)).map((f) => (
-          <FindingCard
-            key={f.id}
-            finding={f}
-            onLocate={f.deviceIds.length ? () => onSelect(f.deviceIds[0]) : undefined}
-            onAsk={() => onAsk(`Explique-moi ce problème et comment le corriger concrètement : « ${f.title} ».`)}
-          />
-        ))}
+      <div className="inspector-section">
+        {list.length === 0 && <p className="muted small">Rien à signaler d'après les informations saisies.</p>}
+        <div className="findings">
+          {list.map((f) => (
+            <FindingCard
+              key={f.id}
+              finding={f}
+              onLocate={f.deviceIds.length ? () => select(f.deviceIds[0]) : undefined}
+              onAsk={() => onAsk(`Explique-moi ce problème et comment le corriger concrètement : « ${f.title} ».`)}
+            />
+          ))}
+        </div>
+        {findings.length > list.length || showAll ? (
+          <button type="button" className="btn btn-sm btn-block" onClick={() => setShowAll((s) => !s)}>
+            {showAll ? "Afficher les points prioritaires" : `Voir les ${findings.length} constats`}
+          </button>
+        ) : null}
       </div>
-      {(important.length > 6 || others.length > 0) && (
-        <button type="button" className="btn small" onClick={() => setShowAll((s) => !s)}>
-          {showAll ? "Afficher moins" : `Voir tout (${findings.length})`}
-        </button>
-      )}
     </div>
   );
 }
@@ -272,33 +292,44 @@ function GenerateDialog({ panel, onClose }: { panel: Panel; onClose: () => void 
   return (
     <Modal
       title={replace ? "Régénérer ce tableau" : "Générer un tableau conforme"}
+      subtitle="Chaque circuit décrit est repris, corrigé et réparti sous des différentiels 30 mA, avec 20 % de réserve."
       onClose={onClose}
+      size="sm"
       footer={
         <>
-          <button type="button" className="btn ghost" onClick={onClose}>
+          <button type="button" className="btn btn-ghost" onClick={onClose}>
             Annuler
           </button>
           <button
             type="button"
-            className="btn primary"
+            className="btn btn-primary"
             disabled={!sourceId}
             onClick={() => {
               generate(sourceId!, { brand, modulesPerRow }, replace);
+              toast(replace ? "Tableau régénéré" : "Nouveau tableau conforme créé");
               onClose();
             }}
           >
-            {replace ? "Remplacer le tableau" : "Créer le nouveau tableau"}
+            <IconWand size={16} /> {replace ? "Remplacer le tableau" : "Générer"}
           </button>
         </>
       }
     >
-      <p>
-        Le simulateur reprend chaque circuit décrit dans le tableau existant, corrige les calibres, scinde les circuits trop chargés, ajoute les
-        circuits exigés, puis répartit le tout sous des interrupteurs différentiels 30 mA (un par rangée, dont un de type A) avec 20 % de réserve.
-      </p>
-      <div className="grid-fields">
-        <label className="field">
-          <span>À partir de</span>
+      <ul className="list-notes">
+        {[
+          "Calibres corrigés selon l'usage et la section des fils",
+          "Circuits trop chargés scindés, circuits obligatoires ajoutés",
+          "Un différentiel par rangée, dont un de type A (plaque, lave-linge)",
+          "Parafoudre et disjoncteur différentiel VE si nécessaire",
+        ].map((t) => (
+          <li key={t}>
+            <IconCheck size={15} />
+            <span>{t}</span>
+          </li>
+        ))}
+      </ul>
+      <div className="form-grid">
+        <Field label="À partir de" full>
           <select id="gen-source" className="input" value={sourceId} onChange={(e) => setSourceId(e.target.value)}>
             {sources.map((p) => (
               <option key={p.id} value={p.id}>
@@ -306,27 +337,22 @@ function GenerateDialog({ panel, onClose }: { panel: Panel; onClose: () => void 
               </option>
             ))}
           </select>
-        </label>
-        <label className="field">
-          <span>Marque</span>
+        </Field>
+        <Field label="Marque">
           <select id="gen-brand" className="input" value={brand} onChange={(e) => setBrand(e.target.value as Brand)}>
             {DEVICE_BRANDS.map((b) => (
               <option key={b}>{b}</option>
             ))}
           </select>
-        </label>
-        <label className="field">
-          <span>Modules par rangée</span>
+        </Field>
+        <Field label="Largeur du coffret">
           <select id="gen-modules" className="input" value={modulesPerRow} onChange={(e) => setModulesPerRow(Number(e.target.value) as 13 | 18)}>
-            <option value={13}>13</option>
-            <option value={18}>18</option>
+            <option value={13}>13 modules par rangée</option>
+            <option value={18}>18 modules par rangée</option>
           </select>
-        </label>
+        </Field>
       </div>
-      {replace && <p className="muted">Les modifications faites à la main sur ce tableau seront remplacées (annulable avec Ctrl+Z).</p>}
-      <p className="muted" style={{ fontSize: "0.85rem" }}>
-        Les éléments conformes de l'existant de même marque sont automatiquement comptés dans votre stock sur la page Matériel.
-      </p>
+      {replace && <p className="muted small">Les retouches faites à la main sur ce tableau seront remplacées (annulable avec Ctrl+Z).</p>}
     </Modal>
   );
 }

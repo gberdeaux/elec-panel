@@ -1,15 +1,22 @@
 import { useState } from "react";
 import { findingsForDevice } from "../domain/analysis";
 import { type CatalogKind, KIND_LABEL, catalogById, deviceFromCatalog } from "../domain/catalog";
-import { SECTIONS, STANDARD_RATINGS, USAGES, USAGE_ORDER, expectedProtection, maxPointsFor } from "../domain/norm";
+import { SECTIONS, STANDARD_RATINGS, USAGES, USAGE_ORDER, expectedProtection, maxPointsFor, mm2 } from "../domain/norm";
 import { deviceTitle, findDevice, isCircuitDevice, protectionMap } from "../domain/panel";
 import { BRANDS, type Brand, type Circuit, type CircuitUsage, type Condition, type Curve, type Device, type Finding, type Panel, type Poles, type RcdType } from "../domain/types";
 import { useStore } from "../store/store";
 import { CatalogPicker } from "./CatalogPicker";
-import { FindingCard, NumberInput } from "./ui";
+import { DeviceArt } from "./DeviceArt";
+import { IconArrowRight, IconBook, IconClose, IconDuplicate, IconTrash } from "./icons";
+import { Field, FindingCard, NumberInput } from "./ui";
 
 const KINDS: CatalogKind[] = ["mcb", "rcd", "rcbo", "fuse", "spd", "contactor", "teleruptor", "switch", "timer", "socket", "blank", "other"];
-const CONDITIONS: Condition[] = ["bon", "usé", "HS", "inconnu"];
+const CONDITIONS: { value: Condition; label: string }[] = [
+  { value: "bon", label: "Bon état" },
+  { value: "usé", label: "Usé / douteux" },
+  { value: "HS", label: "Hors service" },
+  { value: "inconnu", label: "Inconnu" },
+];
 
 export function Inspector({ panel, device, findings, onAsk }: { panel: Panel; device: Device; findings: Finding[]; onAsk: (q: string) => void }) {
   const update = useStore((s) => s.updateDevice);
@@ -28,8 +35,7 @@ export function Inspector({ panel, device, findings, onAsk }: { panel: Panel; de
   };
 
   const loc = findDevice(panel, device.id);
-  const guards = protectionMap(panel);
-  const guard = guards.get(device.id);
+  const guard = protectionMap(panel).get(device.id);
   const rcds = panel.rows.flat().filter((d) => d.kind === "rcd");
   const own = findingsForDevice(findings, device.id);
   const item = catalogById(device.catalogId, custom);
@@ -42,74 +48,81 @@ export function Inspector({ panel, device, findings, onAsk }: { panel: Panel; de
   const maxPoints = c ? maxPointsFor(c.usage, device.rating) : undefined;
 
   return (
-    <div className="stack">
-      <div className="row">
+    <div>
+      <div className="inspector-head">
+        <div className="inspector-thumb">
+          <DeviceArt device={device} view="full" scale={device.modules > 2 ? 0.55 : 0.85} />
+        </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div className="eyebrow">
+          <div className="overline">
             Rangée {loc ? loc.row + 1 : "?"} · position {loc ? loc.index + 1 : "?"}
           </div>
-          <h3>{deviceTitle(device)}</h3>
-          {item && (
-            <p className="muted" style={{ fontSize: "0.82rem" }}>
-              {item.brand} {item.range} · <span className="mono">{device.ref ?? item.ref ?? "réf. à compléter"}</span>
-            </p>
-          )}
+          <h2 style={{ marginTop: 3 }}>{deviceTitle(device)}</h2>
+          <p className="muted small" style={{ marginTop: 2 }}>
+            {device.label || (c ? USAGES[c.usage].label : "Sans étiquette")}
+          </p>
+          <p className="muted xsmall mono" style={{ marginTop: 4 }}>
+            {device.brand ?? "Marque ?"} · {device.ref ?? item?.ref ?? "réf. à compléter"}
+          </p>
         </div>
-        <button type="button" className="btn ghost icon" onClick={() => select(undefined)} aria-label="Fermer l'inspecteur">
-          ✕
+        <button type="button" className="btn btn-ghost btn-icon btn-sm" onClick={() => select(undefined)} aria-label="Fermer l'inspecteur">
+          <IconClose size={17} />
         </button>
       </div>
 
-      <div className="row">
-        <button type="button" className="btn small icon" disabled={!loc || loc.index === 0} onClick={() => loc && move(panel.id, device.id, loc.row, loc.index - 1)} aria-label="Déplacer à gauche">
-          ←
+      <div className="inspector-section" style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+        <div className="btn-group" role="group" aria-label="Déplacer">
+          <button type="button" className="btn btn-sm btn-icon" disabled={!loc || loc.index === 0} onClick={() => loc && move(panel.id, device.id, loc.row, loc.index - 1)} aria-label="Déplacer à gauche" title="Gauche">
+            ←
+          </button>
+          <button type="button" className="btn btn-sm btn-icon" disabled={!loc || loc.index === panel.rows[loc.row].length - 1} onClick={() => loc && move(panel.id, device.id, loc.row, loc.index + 2)} aria-label="Déplacer à droite" title="Droite">
+            →
+          </button>
+          <button type="button" className="btn btn-sm btn-icon" disabled={!loc || loc.row === 0} onClick={() => loc && move(panel.id, device.id, loc.row - 1, panel.rows[loc.row - 1].length)} aria-label="Rangée du dessus" title="Rangée du dessus">
+            ↑
+          </button>
+          <button type="button" className="btn btn-sm btn-icon" onClick={() => loc && move(panel.id, device.id, loc.row + 1, panel.rows[loc.row + 1]?.length ?? 0)} aria-label="Rangée du dessous" title="Rangée du dessous">
+            ↓
+          </button>
+        </div>
+        <button type="button" className="btn btn-sm" onClick={() => setReplacing(true)}>
+          Remplacer
         </button>
-        <button type="button" className="btn small icon" disabled={!loc || loc.index === panel.rows[loc.row].length - 1} onClick={() => loc && move(panel.id, device.id, loc.row, loc.index + 2)} aria-label="Déplacer à droite">
-          →
-        </button>
-        <button type="button" className="btn small icon" disabled={!loc || loc.row === 0} onClick={() => loc && move(panel.id, device.id, loc.row - 1, panel.rows[loc.row - 1].length)} aria-label="Rangée du dessus">
-          ↑
-        </button>
-        <button type="button" className="btn small icon" onClick={() => loc && move(panel.id, device.id, loc.row + 1, panel.rows[loc.row + 1]?.length ?? 0)} aria-label="Rangée du dessous">
-          ↓
-        </button>
-        <button type="button" className="btn small" onClick={() => duplicate(panel.id, device.id)}>
-          Dupliquer
-        </button>
-        <button type="button" className="btn small" onClick={() => setReplacing(true)}>
-          Catalogue
+        <button type="button" className="btn btn-sm btn-icon" onClick={() => duplicate(panel.id, device.id)} aria-label="Dupliquer" title="Dupliquer">
+          <IconDuplicate size={15} />
         </button>
         {confirmDelete ? (
           <>
-            <button type="button" className="btn small danger" onClick={() => remove(panel.id, device.id)}>
-              Confirmer
+            <button type="button" className="btn btn-sm btn-danger-solid" onClick={() => remove(panel.id, device.id)}>
+              Supprimer
             </button>
-            <button type="button" className="btn small ghost" onClick={() => setConfirmDelete(false)}>
+            <button type="button" className="btn btn-sm btn-ghost" onClick={() => setConfirmDelete(false)}>
               Annuler
             </button>
           </>
         ) : (
-          <button type="button" className="btn small danger" onClick={() => setConfirmDelete(true)}>
-            Supprimer
+          <button type="button" className="btn btn-sm btn-icon btn-ghost btn-danger" onClick={() => setConfirmDelete(true)} aria-label="Supprimer" title="Supprimer">
+            <IconTrash size={15} />
           </button>
         )}
       </div>
 
       {own.length > 0 && (
-        <div className="side-section stack">
-          <div className="eyebrow">Constats sur cet appareil</div>
-          {own.map((f) => (
-            <FindingCard key={f.id} finding={f} onAsk={() => onAsk(`Explique-moi ce problème et comment le corriger concrètement : « ${f.title} ».`)} />
-          ))}
+        <div className="inspector-section">
+          <div className="overline">Constats sur cet appareil</div>
+          <div className="findings">
+            {own.map((f) => (
+              <FindingCard key={f.id} finding={f} onAsk={() => onAsk(`Explique-moi ce problème et comment le corriger concrètement : « ${f.title} ».`)} />
+            ))}
+          </div>
         </div>
       )}
 
       {isCircuitDevice(device) && (
-        <div className="side-section stack">
-          <div className="eyebrow">Ce qui est branché dessus</div>
-          <div className="grid-fields">
-            <label className="field" style={{ gridColumn: "1 / -1" }}>
-              <span>Usage du circuit</span>
+        <div className="inspector-section">
+          <div className="overline">Ce qui est branché dessus</div>
+          <div className="form-grid">
+            <Field label="Usage du circuit" full>
               <select
                 id="circuit-usage"
                 className="input"
@@ -120,84 +133,85 @@ export function Inspector({ panel, device, findings, onAsk }: { panel: Panel; de
                   setCircuit({ usage, points: c?.points ?? USAGES[usage].defaultPoints });
                 }}
               >
-                <option value="">— Non décrit —</option>
+                <option value="">Non décrit</option>
                 {USAGE_ORDER.map((u) => (
                   <option key={u} value={u}>
                     {USAGES[u].label}
                   </option>
                 ))}
               </select>
-            </label>
+            </Field>
             {c && spec && (
               <>
-                <label className="field" style={{ gridColumn: "1 / -1" }}>
-                  <span>Pièces desservies</span>
+                <Field label="Pièces desservies" full>
                   <input id="circuit-rooms" className="input" value={c.rooms} placeholder="Séjour, entrée…" onChange={(e) => setCircuit({ rooms: e.target.value })} />
-                </label>
-                <label className="field">
-                  <span>Nombre de {spec.pointsLabel}</span>
+                </Field>
+                <Field label={`Nombre de ${spec.pointsLabel}`}>
                   <NumberInput id="circuit-points" value={c.points} min={0} max={99} onChange={(v) => setCircuit({ points: v ?? 0 })} />
-                </label>
-                <label className="field">
-                  <span>Section des fils</span>
-                  <select
-                    id="circuit-section"
-                    className="input"
-                    value={c.sectionMm2 ?? ""}
-                    onChange={(e) => setCircuit({ sectionMm2: e.target.value ? Number(e.target.value) : undefined })}
-                  >
+                </Field>
+                <Field label="Section des fils">
+                  <select id="circuit-section" className="input" value={c.sectionMm2 ?? ""} onChange={(e) => setCircuit({ sectionMm2: e.target.value ? Number(e.target.value) : undefined })}>
                     <option value="">Inconnue</option>
                     {SECTIONS.map((s) => (
                       <option key={s} value={s}>
-                        {String(s).replace(".", ",")} mm²
+                        {mm2(s)} mm²
                       </option>
                     ))}
                   </select>
-                </label>
-                <label className="field">
-                  <span>Puissance (W)</span>
-                  <NumberInput id="circuit-power" value={c.powerW} min={0} step={100} placeholder={spec.powerBased ? "à renseigner" : "facultatif"} onChange={(v) => setCircuit({ powerW: v })} />
-                </label>
-                <label className="field" style={{ gridColumn: "1 / -1" }}>
-                  <span>Détail (appareils, remarques)</span>
-                  <textarea id="circuit-description" className="input" value={c.description ?? ""} onChange={(e) => setCircuit({ description: e.target.value || undefined })} />
-                </label>
+                </Field>
+                <Field label="Puissance" hint={spec.powerBased ? "Nécessaire pour ce circuit" : "Facultatif"} full>
+                  <div className="row" style={{ flexWrap: "nowrap" }}>
+                    <NumberInput id="circuit-power" value={c.powerW} min={0} step={100} placeholder="0" onChange={(v) => setCircuit({ powerW: v })} />
+                    <span className="muted">W</span>
+                  </div>
+                </Field>
+                <Field label="Appareils, remarques" full>
+                  <textarea id="circuit-description" className="input" value={c.description ?? ""} placeholder="Ex. : 3 radiateurs de 1 500 W, sèche-serviettes…" onChange={(e) => setCircuit({ description: e.target.value || undefined })} />
+                </Field>
               </>
             )}
           </div>
           {c && spec && expected && (
-            <div className="norm-box">
-              <span className="ref">{spec.normRef}</span>
-              {spec.normText}
-              <div style={{ marginTop: 6 }}>
-                Recommandé ici : <b className="mono">{expected.rating} A</b> en <b className="mono">{String(expected.section).replace(".", ",")} mm²</b>
-                {maxPoints !== undefined && !spec.dedicated && (
-                  <>
-                    , <b className="mono">{maxPoints}</b> {spec.pointsLabel} max
-                  </>
+            <>
+              <div className="recommend">
+                <span style={{ flex: 1, minWidth: 180 }}>
+                  Recommandé : <b className="mono">{expected.rating} A</b> en <b className="mono">{mm2(expected.section)} mm²</b>
+                  {maxPoints !== undefined && !spec.dedicated && (
+                    <>
+                      , <b className="mono">{maxPoints}</b> {spec.pointsLabel} max
+                    </>
+                  )}
+                </span>
+                {device.rating !== expected.rating && (
+                  <button type="button" className="btn btn-sm btn-primary" onClick={() => set({ rating: expected.rating })}>
+                    Passer en {expected.rating} A <IconArrowRight size={14} />
+                  </button>
                 )}
-                .
               </div>
-              {device.rating !== expected.rating && (
-                <button type="button" className="btn small" style={{ marginTop: 6 }} onClick={() => set({ rating: expected.rating })}>
-                  Passer le disjoncteur en {expected.rating} A
-                </button>
-              )}
-            </div>
+              <details>
+                <summary className="small" style={{ cursor: "pointer", color: "var(--brand)", fontWeight: 550 }}>
+                  Règle applicable
+                </summary>
+                <div className="finding-norm" style={{ marginTop: 8 }}>
+                  <span className="ref">
+                    <IconBook size={13} /> {spec.normRef}
+                  </span>
+                  {spec.normText}
+                </div>
+              </details>
+            </>
           )}
           {c?.rewire && <p className="error-text">Câble à remplacer : la section actuelle est insuffisante pour ce circuit.</p>}
         </div>
       )}
 
-      <div className="side-section stack">
-        <div className="eyebrow">Caractéristiques</div>
-        <div className="grid-fields">
-          <label className="field" style={{ gridColumn: "1 / -1" }}>
-            <span>Libellé (étiquette)</span>
-            <input id="device-label" className="input" value={device.label ?? ""} onChange={(e) => set({ label: e.target.value || undefined })} />
-          </label>
-          <label className="field">
-            <span>Type</span>
+      <div className="inspector-section">
+        <div className="overline">Caractéristiques</div>
+        <div className="form-grid">
+          <Field label="Étiquette" full>
+            <input id="device-label" className="input" value={device.label ?? ""} placeholder="Texte du porte-étiquette" onChange={(e) => set({ label: e.target.value || undefined })} />
+          </Field>
+          <Field label="Type d'appareil" full>
             <select id="device-kind" className="input" value={device.kind} onChange={(e) => set({ kind: e.target.value as Device["kind"], catalogId: undefined })}>
               {KINDS.map((k) => (
                 <option key={k} value={k}>
@@ -205,16 +219,10 @@ export function Inspector({ panel, device, findings, onAsk }: { panel: Panel; de
                 </option>
               ))}
             </select>
-          </label>
+          </Field>
           {hasRating && (
-            <label className="field">
-              <span>Calibre</span>
-              <select
-                id="device-rating"
-                className="input"
-                value={device.rating ?? ""}
-                onChange={(e) => set({ rating: e.target.value ? Number(e.target.value) : undefined, catalogId: undefined })}
-              >
+            <Field label="Calibre">
+              <select id="device-rating" className="input" value={device.rating ?? ""} onChange={(e) => set({ rating: e.target.value ? Number(e.target.value) : undefined, catalogId: undefined })}>
                 <option value="">?</option>
                 {[...new Set([...STANDARD_RATINGS, device.rating ?? 0])]
                   .filter(Boolean)
@@ -225,60 +233,50 @@ export function Inspector({ panel, device, findings, onAsk }: { panel: Panel; de
                     </option>
                   ))}
               </select>
-            </label>
+            </Field>
           )}
           {isBreaker && (
-            <>
-              <label className="field">
-                <span>Courbe</span>
-                <select id="device-curve" className="input" value={device.curve ?? ""} onChange={(e) => set({ curve: (e.target.value || undefined) as Curve | undefined })}>
-                  <option value="">?</option>
-                  <option>B</option>
-                  <option>C</option>
-                  <option>D</option>
-                </select>
-              </label>
-              <label className="field">
-                <span>Pouvoir de coupure</span>
-                <select
-                  id="device-pdc"
-                  className="input"
-                  value={device.breakingCapacity ?? ""}
-                  onChange={(e) => set({ breakingCapacity: e.target.value ? Number(e.target.value) : undefined })}
-                >
-                  <option value="">Inconnu</option>
-                  {[1500, 3000, 4500, 6000, 10000].map((v) => (
-                    <option key={v} value={v}>
-                      {v / 1000} kA
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </>
+            <Field label="Courbe">
+              <select id="device-curve" className="input" value={device.curve ?? ""} onChange={(e) => set({ curve: (e.target.value || undefined) as Curve | undefined })}>
+                <option value="">?</option>
+                <option>B</option>
+                <option>C</option>
+                <option>D</option>
+              </select>
+            </Field>
           )}
           {(isBreaker || device.kind === "fuse") && (
-            <label className="field">
-              <span>Pôles</span>
+            <Field label="Pôles">
               <select id="device-poles" className="input" value={device.poles ?? ""} onChange={(e) => set({ poles: (e.target.value || undefined) as Poles | undefined })}>
                 <option value="">?</option>
                 <option value="1P+N">Phase + neutre</option>
                 <option value="1P">Phase seule</option>
                 <option value="2P">Bipolaire</option>
               </select>
-            </label>
+            </Field>
+          )}
+          {isBreaker && (
+            <Field label="Pouvoir de coupure">
+              <select id="device-pdc" className="input" value={device.breakingCapacity ?? ""} onChange={(e) => set({ breakingCapacity: e.target.value ? Number(e.target.value) : undefined })}>
+                <option value="">Inconnu</option>
+                {[1500, 3000, 4500, 6000, 10000].map((v) => (
+                  <option key={v} value={v}>
+                    {v / 1000} kA
+                  </option>
+                ))}
+              </select>
+            </Field>
           )}
           {isResidual && (
             <>
-              <label className="field">
-                <span>Type</span>
+              <Field label="Type">
                 <select id="device-rcdtype" className="input" value={device.rcdType ?? "AC"} onChange={(e) => set({ rcdType: e.target.value as RcdType, catalogId: undefined })}>
                   {(["AC", "A", "A-SI", "F", "B"] as RcdType[]).map((t) => (
                     <option key={t}>{t}</option>
                   ))}
                 </select>
-              </label>
-              <label className="field">
-                <span>Sensibilité</span>
+              </Field>
+              <Field label="Sensibilité">
                 <select id="device-sensitivity" className="input" value={device.sensitivity ?? 30} onChange={(e) => set({ sensitivity: Number(e.target.value) })}>
                   {[10, 30, 300, 500].map((v) => (
                     <option key={v} value={v}>
@@ -286,42 +284,45 @@ export function Inspector({ panel, device, findings, onAsk }: { panel: Panel; de
                     </option>
                   ))}
                 </select>
-              </label>
+              </Field>
             </>
           )}
-          <label className="field">
-            <span>Largeur (modules)</span>
-            <NumberInput id="device-modules" value={device.modules} min={1} max={12} onChange={(v) => set({ modules: Math.max(1, Math.round(v ?? 1)) })} />
-          </label>
-          <label className="field">
-            <span>État</span>
-            <select id="device-condition" className="input" value={device.condition ?? "inconnu"} onChange={(e) => set({ condition: e.target.value as Condition })}>
-              {CONDITIONS.map((v) => (
-                <option key={v}>{v}</option>
+          <Field label="Largeur">
+            <select id="device-modules" className="input" value={device.modules} onChange={(e) => set({ modules: Number(e.target.value) })}>
+              {[1, 2, 3, 4, 5, 6].map((m) => (
+                <option key={m} value={m}>
+                  {m} module{m > 1 ? "s" : ""}
+                </option>
               ))}
             </select>
-          </label>
-          <label className="field">
-            <span>Marque</span>
+          </Field>
+          <Field label="État">
+            <select id="device-condition" className="input" value={device.condition ?? "inconnu"} onChange={(e) => set({ condition: e.target.value as Condition })}>
+              {CONDITIONS.map((v) => (
+                <option key={v.value} value={v.value}>
+                  {v.label}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Marque">
             <select id="device-brand" className="input" value={device.brand ?? ""} onChange={(e) => set({ brand: (e.target.value || undefined) as Brand | undefined })}>
               <option value="">?</option>
               {BRANDS.map((b) => (
                 <option key={b}>{b}</option>
               ))}
             </select>
-          </label>
-          <label className="field">
-            <span>Référence</span>
+          </Field>
+          <Field label="Référence">
             <input id="device-ref" className="input mono" value={device.ref ?? ""} onChange={(e) => set({ ref: e.target.value || undefined })} />
-          </label>
+          </Field>
         </div>
       </div>
 
       {device.kind !== "rcd" && device.kind !== "rcbo" && (
-        <div className="side-section stack">
-          <div className="eyebrow">Protection différentielle</div>
-          <label className="field">
-            <span>Protégé par</span>
+        <div className="inspector-section">
+          <div className="overline">Protection différentielle</div>
+          <Field label="Protégé par" hint={`Actuellement : ${guard ? deviceTitle(guard) : "aucune protection différentielle"}.`}>
             <select
               id="device-protected-by"
               className="input"
@@ -331,7 +332,7 @@ export function Inspector({ panel, device, findings, onAsk }: { panel: Panel; de
                 set({ protectedBy: v === "auto" ? undefined : v === "none" ? null : v });
               }}
             >
-              <option value="auto">Automatique (différentiel à gauche dans la rangée)</option>
+              <option value="auto">Automatique (différentiel de la rangée)</option>
               {rcds.map((r) => {
                 const l = findDevice(panel, r.id);
                 return (
@@ -342,10 +343,7 @@ export function Inspector({ panel, device, findings, onAsk }: { panel: Panel; de
               })}
               <option value="none">Aucun différentiel</option>
             </select>
-          </label>
-          <p className="muted" style={{ fontSize: "0.82rem" }}>
-            Actuellement : {guard ? deviceTitle(guard) : "aucune protection différentielle"}.
-          </p>
+          </Field>
         </div>
       )}
 

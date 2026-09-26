@@ -1,9 +1,38 @@
-import { useMemo, useState } from "react";
-import { bomToCsv, bomToText, bomTotals, computeBom } from "../domain/bom";
-import { KIND_LABEL, leroyMerlinSearchUrl } from "../domain/catalog";
+import { useMemo } from "react";
+import { type BomLine, bomToCsv, bomToText, bomTotals, computeBom } from "../domain/bom";
+import { KIND_LABEL, catalogById, leroyMerlinSearchUrl } from "../domain/catalog";
 import { exportFile } from "../store/persistence";
 import { useStore } from "../store/store";
-import { NumberInput, euro } from "./ui";
+import { CatalogArt } from "./CatalogPicker";
+import { IconBox, IconCopy, IconDownload, IconExternal, IconPlus, IconUndo } from "./icons";
+import { Field, NumberInput, Switch, euro, toast } from "./ui";
+
+function Thumb({ line }: { line: BomLine }) {
+  const custom = useStore((s) => s.project.customCatalog);
+  const item = catalogById(line.catalogId, custom);
+  if (line.kind === "enclosure") {
+    return (
+      <svg width="40" height="44" viewBox="0 0 40 44" aria-hidden="true">
+        <rect x="1" y="1" width="38" height="42" rx="5" fill="#f7f7f3" stroke="#c9cbc4" />
+        <rect x="5" y="7" width="30" height="7" rx="1" fill="#1d2024" />
+        <rect x="5" y="18" width="30" height="7" rx="1" fill="#1d2024" />
+        <rect x="5" y="29" width="30" height="7" rx="1" fill="#e6e6e0" />
+      </svg>
+    );
+  }
+  if (line.kind === "comb") {
+    return (
+      <svg width="46" height="20" viewBox="0 0 46 20" aria-hidden="true">
+        <rect x="1" y="3" width="44" height="7" rx="1.5" fill="#62676e" />
+        {Array.from({ length: 8 }, (_, i) => (
+          <rect key={i} x={3 + i * 5.4} y="10" width="2.4" height="6" fill="#c7803d" />
+        ))}
+      </svg>
+    );
+  }
+  if (item) return <CatalogArt item={item} scale={0.95} />;
+  return <IconBox />;
+}
 
 export function MaterialsView() {
   const project = useStore((s) => s.project);
@@ -11,7 +40,6 @@ export function MaterialsView() {
   const setInventory = useStore((s) => s.setInventory);
   const setCrossBrand = useStore((s) => s.setCrossBrand);
   const addPanel = useStore((s) => s.addPanel);
-  const [copied, setCopied] = useState<string>();
 
   const targets = project.panels.filter((p) => p.role === "new");
   const sources = project.panels.filter((p) => p.role === "existing");
@@ -23,15 +51,22 @@ export function MaterialsView() {
 
   if (!target) {
     return (
-      <div className="stack" style={{ gap: 16 }}>
-        <h2>Matériel</h2>
-        <div className="card stack">
-          <p>Il n'y a pas encore de nouveau tableau. Générez-en un depuis votre tableau existant, ou créez-le à la main.</p>
-          <div className="row">
-            <button type="button" className="btn primary" onClick={() => addPanel("new")}>
-              Créer un nouveau tableau vide
-            </button>
+      <div>
+        <div className="page-head">
+          <div>
+            <h1>Matériel et achats</h1>
+            <p className="sub">La liste de matériel se calcule à partir d'un nouveau tableau.</p>
           </div>
+        </div>
+        <div className="card empty">
+          <span className="empty-icon">
+            <IconBox />
+          </span>
+          <h3>Pas encore de nouveau tableau</h3>
+          <p>Générez-le depuis votre tableau existant, ou créez-en un vide pour le composer vous-même.</p>
+          <button type="button" className="btn btn-primary" onClick={() => addPanel("new")}>
+            <IconPlus size={16} /> Créer un nouveau tableau
+          </button>
         </div>
       </div>
     );
@@ -41,179 +76,194 @@ export function MaterialsView() {
     const text = `Liste d'achat — ${target.name}\n${bomToText(lines)}\nTotal indicatif : ${euro(totals.cost)}`;
     try {
       await navigator.clipboard.writeText(text);
-      setCopied("Liste copiée dans le presse-papiers.");
+      toast("Liste d'achat copiée");
     } catch {
-      setCopied("Copie refusée par le navigateur : sélectionnez le tableau et copiez-le.");
+      toast("Copie refusée par le navigateur");
     }
   };
 
   return (
-    <div className="stack" style={{ gap: 16 }}>
-      <div className="row" style={{ alignItems: "flex-end" }}>
-        <div style={{ flex: 1, minWidth: 220 }}>
-          <div className="eyebrow">Nomenclature et liste d'achat</div>
-          <h2>Matériel</h2>
+    <div>
+      <div className="page-head">
+        <div>
+          <h1>Matériel et achats</h1>
+          <p className="sub">Ce qu'il faut pour « {target.name} », ce que vous avez déjà et ce qu'il reste à acheter.</p>
         </div>
-        <label className="field" style={{ minWidth: 190 }}>
-          <span>Nouveau tableau</span>
-          <select id="bom-target" className="input" value={target.id} onChange={(e) => setMaterialPanels(source?.id, e.target.value)}>
-            {targets.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="field" style={{ minWidth: 190 }}>
-          <span>Réemployer depuis</span>
-          <select id="bom-source" className="input" value={source?.id ?? ""} onChange={(e) => setMaterialPanels(e.target.value || undefined, target.id)}>
-            <option value="">Aucun tableau</option>
-            {sources.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-
-      <div className="kpis">
-        <div className="kpi">
-          <span className="muted">Articles nécessaires</span>
-          <b>{totals.items}</b>
-        </div>
-        <div className="kpi">
-          <span className="muted">Déjà en ma possession</span>
-          <b>{totals.reused}</b>
-        </div>
-        <div className="kpi">
-          <span className="muted">À acheter</span>
-          <b style={{ color: "var(--accent)" }}>{totals.toBuy}</b>
-        </div>
-        <div className="kpi">
-          <span className="muted">Budget indicatif</span>
-          <b>{euro(totals.cost)}</b>
+        <div className="row">
+          <button type="button" className="btn" onClick={copyList}>
+            <IconCopy size={16} /> Copier la liste
+          </button>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={async () => {
+              const ok = await exportFile(`materiel-${target.name.replace(/\W+/g, "-").toLowerCase()}.csv`, "﻿" + bomToCsv(lines), "text/csv");
+              if (ok) toast("Liste exportée en CSV");
+            }}
+          >
+            <IconDownload size={16} /> Exporter en CSV
+          </button>
         </div>
       </div>
 
-      <div className="row">
-        <label className="check">
-          <input id="bom-cross" type="checkbox" checked={project.allowCrossBrandReuse} onChange={(e) => setCrossBrand(e.target.checked)} />
-          <span>Réemployer aussi les appareils d'une autre marque (vérifier la compatibilité des peignes)</span>
-        </label>
-        <span className="spacer" />
-        <button type="button" className="btn" onClick={copyList}>
-          Copier la liste d'achat
-        </button>
-        <button type="button" className="btn" onClick={() => exportFile(`materiel-${target.name.replace(/\W+/g, "-").toLowerCase()}.csv`, "﻿" + bomToCsv(lines), "text/csv")}>
-          Exporter en CSV
-        </button>
-      </div>
-      {copied && <p className="muted">{copied}</p>}
+      <div className="stack-lg">
+        <div className="grid-4">
+          <div className="card kpi">
+            <span className="kpi-label">Articles nécessaires</span>
+            <span className="kpi-value">{totals.items}</span>
+            <span className="kpi-foot">{lines.length} références différentes</span>
+          </div>
+          <div className="card kpi">
+            <span className="kpi-label">Déjà en ma possession</span>
+            <span className="kpi-value" style={{ color: "var(--ok)" }}>
+              {totals.reused}
+            </span>
+            <span className="kpi-foot">réemploi et stock saisi</span>
+          </div>
+          <div className="card kpi">
+            <span className="kpi-label">À acheter</span>
+            <span className="kpi-value" style={{ color: "var(--brand)" }}>
+              {totals.toBuy}
+            </span>
+            <span className="kpi-foot">articles</span>
+          </div>
+          <div className="card kpi">
+            <span className="kpi-label">Budget indicatif</span>
+            <span className="kpi-value">{euro(totals.cost)}</span>
+            <span className="kpi-foot">prix grande surface TTC</span>
+          </div>
+        </div>
 
-      <div className="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Article</th>
-              <th>Marque · réf.</th>
-              <th className="num">Besoin</th>
-              <th className="num">J'ai</th>
-              <th className="num">À acheter</th>
-              <th className="num">Prix u.</th>
-              <th className="num">Total</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {lines.map((l) => (
-              <tr key={l.key}>
-                <td>
-                  <div className="eyebrow" style={{ fontSize: "0.7rem" }}>
-                    {KIND_LABEL[l.kind]}
-                  </div>
-                  {l.label}
-                  {l.reuse.length > 0 && (
-                    <div className="muted" style={{ fontSize: "0.78rem" }}>
-                      Réemploi : {l.reuse.join(", ")}
-                    </div>
-                  )}
-                  {l.note && (
-                    <div className="muted" style={{ fontSize: "0.78rem" }}>
-                      {l.note}
-                    </div>
-                  )}
-                </td>
-                <td>
-                  {l.brand}
-                  <div className="mono muted" style={{ fontSize: "0.78rem", whiteSpace: "nowrap" }}>
-                    {l.ref ?? "réf. à compléter"}
-                  </div>
-                </td>
-                <td className="num">{l.needed}</td>
-                <td className="num">
-                  <div className="row" style={{ justifyContent: "flex-end", gap: 4, flexWrap: "nowrap" }}>
-                    <NumberInput
-                      id={`owned-${l.key}`}
-                      className="input qty-input"
-                      value={l.owned}
-                      min={0}
-                      onChange={(v) => setInventory(l.key, { owned: v === undefined ? undefined : Math.max(0, Math.round(v)) })}
-                    />
-                    {l.ownedOverridden && (
-                      <button
-                        type="button"
-                        className="btn ghost small icon"
-                        title={`Revenir au calcul automatique (${l.autoOwned})`}
-                        aria-label="Revenir au calcul automatique"
-                        onClick={() => setInventory(l.key, { owned: undefined })}
-                      >
-                        ↺
-                      </button>
-                    )}
-                  </div>
-                </td>
-                <td className="num">
-                  <span className="to-buy" data-zero={l.toBuy === 0}>
-                    {l.toBuy === 0 ? "✓" : l.toBuy}
-                  </span>
-                </td>
-                <td className="num">
-                  <NumberInput
-                    id={`price-${l.key}`}
-                    className="input price-input"
-                    value={l.unitPrice}
-                    min={0}
-                    step={0.5}
-                    onChange={(v) => setInventory(l.key, { price: v })}
-                  />
-                </td>
-                <td className="num">{euro(l.total)}</td>
-                <td>
-                  <a className="btn small ghost" href={leroyMerlinSearchUrl(l.ref ?? l.label)} target="_blank" rel="noreferrer">
-                    Chercher
-                  </a>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-          <tfoot>
-            <tr>
-              <td colSpan={2}>Total</td>
-              <td className="num">{totals.items}</td>
-              <td className="num">{totals.reused}</td>
-              <td className="num">{totals.toBuy}</td>
-              <td />
-              <td className="num">{euro(totals.cost)}</td>
-              <td />
-            </tr>
-          </tfoot>
-        </table>
+        <section className="card">
+          <div className="card-head" style={{ flexWrap: "wrap", gap: 16 }}>
+            <Field label="Nouveau tableau">
+              <select id="bom-target" className="input" value={target.id} onChange={(e) => setMaterialPanels(source?.id, e.target.value)}>
+                {targets.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Réemployer depuis">
+              <select id="bom-source" className="input" value={source?.id ?? ""} onChange={(e) => setMaterialPanels(e.target.value || undefined, target.id)}>
+                <option value="">Aucun tableau</option>
+                {sources.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <div style={{ flex: 1, minWidth: 260 }}>
+              <Switch
+                id="bom-cross"
+                checked={project.allowCrossBrandReuse}
+                onChange={setCrossBrand}
+                label="Réemployer les autres marques"
+                hint="Vérifiez alors la compatibilité des peignes d'alimentation."
+              />
+            </div>
+          </div>
+          <div className="table-wrap">
+            <table className="data">
+              <thead>
+                <tr>
+                  <th>Article</th>
+                  <th>Marque · référence</th>
+                  <th className="r">Besoin</th>
+                  <th className="r">J'ai</th>
+                  <th className="r">À acheter</th>
+                  <th className="r">Prix unitaire</th>
+                  <th className="r">Total</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {lines.map((l) => (
+                  <tr key={l.key}>
+                    <td>
+                      <div className="product">
+                        <span className="product-thumb">
+                          <Thumb line={l} />
+                        </span>
+                        <span style={{ minWidth: 0 }}>
+                          <span className="overline" style={{ fontSize: "0.66rem" }}>
+                            {KIND_LABEL[l.kind]}
+                          </span>
+                          <b>{l.label}</b>
+                          {l.reuse.length > 0 && <span className="muted xsmall">Réemploi : {l.reuse.join(", ")}</span>}
+                          {l.note && (
+                            <span className="muted xsmall" style={{ display: "block" }}>
+                              {l.note}
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                    </td>
+                    <td style={{ whiteSpace: "nowrap" }}>
+                      {l.brand}
+                      <div className="mono muted xsmall">{l.ref ?? "réf. à compléter"}</div>
+                    </td>
+                    <td className="r">{l.needed}</td>
+                    <td className="r">
+                      <div className="row" style={{ justifyContent: "flex-end", flexWrap: "nowrap", gap: 4 }}>
+                        {l.ownedOverridden && (
+                          <button
+                            type="button"
+                            className="btn btn-ghost btn-icon btn-sm"
+                            title={`Revenir au calcul automatique (${l.autoOwned})`}
+                            aria-label="Revenir au calcul automatique"
+                            onClick={() => setInventory(l.key, { owned: undefined })}
+                          >
+                            <IconUndo size={14} />
+                          </button>
+                        )}
+                        <NumberInput
+                          id={`owned-${l.key}`}
+                          className="input input-sm qty-input"
+                          value={l.owned}
+                          min={0}
+                          onChange={(val) => setInventory(l.key, { owned: val === undefined ? undefined : Math.max(0, Math.round(val)) })}
+                        />
+                      </div>
+                    </td>
+                    <td className="r">
+                      <span className="buy" data-zero={l.toBuy === 0}>
+                        {l.toBuy === 0 ? "✓" : l.toBuy}
+                      </span>
+                    </td>
+                    <td className="r">
+                      <NumberInput id={`price-${l.key}`} className="input input-sm price-input" value={l.unitPrice} min={0} step={0.5} onChange={(val) => setInventory(l.key, { price: val })} />
+                    </td>
+                    <td className="r">{euro(l.total)}</td>
+                    <td>
+                      <a className="btn btn-ghost btn-sm" href={leroyMerlinSearchUrl(l.ref ?? l.label)} target="_blank" rel="noreferrer" title="Rechercher chez Leroy Merlin">
+                        <IconExternal size={15} /> Leroy Merlin
+                      </a>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td colSpan={2}>Total</td>
+                  <td className="r">{totals.items}</td>
+                  <td className="r">{totals.reused}</td>
+                  <td className="r">{totals.toBuy}</td>
+                  <td />
+                  <td className="r">{euro(totals.cost)}</td>
+                  <td />
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </section>
+        <p className="muted xsmall">
+          Prix indicatifs, modifiables : ils varient selon les magasins et les promotions. Pensez aussi aux fournitures hors tableau : fils de liaison 10 mm²,
+          câbles des circuits à recâbler, étiquettes.
+        </p>
       </div>
-      <p className="muted" style={{ fontSize: "0.82rem" }}>
-        Prix indicatifs relevés en grande surface de bricolage : ils varient selon les magasins et les promotions, et sont modifiables. « Chercher » ouvre
-        la recherche Leroy Merlin. Pensez aussi aux fournitures hors tableau : fils de liaison 10 mm², câbles pour les circuits à recâbler, étiquettes.
-      </p>
     </div>
   );
 }
