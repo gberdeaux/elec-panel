@@ -142,6 +142,13 @@ export const IconAlert = make(
     <path d="M12 10v4.5M12 17.2v.3" />
   </>,
 );
+export const IconPrinter = make(
+  <>
+    <path d="M7 9V3h10v6" />
+    <rect x="3" y="9" width="18" height="8" rx="2" />
+    <path d="M7 14h10v7H7z" />
+  </>,
+);
 export const IconTag = make(
   <>
     <path d="M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9-9-9Z" />

@@ -5,7 +5,7 @@ import { deviceTitle, findDevice, repereMap } from "../domain/panel";
 import { DEFAULT_LABEL_SETTINGS } from "../domain/types";
 import { exportFile } from "../store/persistence";
 import { useStore } from "../store/store";
-import { IconDownload, IconInfo, Picto, PICTO_CHOICES } from "./icons";
+import { IconDownload, IconInfo, IconPrinter, Picto, PICTO_CHOICES } from "./icons";
 import { LabelSheet, LabelStrip, labelIconFor, labelTextFor } from "./Labels";
 import { Chips, Field, Switch, toast } from "./ui";
 
@@ -30,6 +30,43 @@ ${svg}`;
     if (ok) toast("Planche d'étiquettes téléchargée");
   };
 
+  /** Page autonome qui lance l'impression à l'ouverture (A4 paysage, échelle réelle). */
+  const printableHtml = (svg: string) => `<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><title>Étiquettes — ${panel.name.replace(/</g, "&lt;")}</title>
+<style>
+@page { size: A4 landscape; margin: 8mm; }
+body { margin: 0; font-family: Arial, Helvetica, sans-serif; background: #fff; }
+.bar { display: flex; gap: 12px; align-items: center; padding: 12px 16px; background: #16181c; color: #fff; font-size: 14px; }
+.bar button { font: inherit; font-weight: 700; padding: 8px 16px; border: 0; border-radius: 8px; background: #ffc21a; color: #121417; cursor: pointer; }
+.sheet { padding: 8mm; }
+@media print { .bar { display: none; } .sheet { padding: 0; } }
+</style></head>
+<body><div class="bar"><button onclick="print()">Imprimer</button><span>Imprimez à 100 % (taille réelle), en A4 paysage, puis découpez le long du cadre.</span></div>
+<div class="sheet">${svg}</div>
+<script>addEventListener("load", function () { setTimeout(function () { print(); }, 400); });</script>
+</body></html>`;
+
+  const printLabels = async () => {
+    if (!IS_ARTIFACT) {
+      window.print();
+      return;
+    }
+    // Dans une page claude.ai, l'impression directe est bloquée : on ouvre une page d'impression
+    // dédiée, ou à défaut on la télécharge (elle lance l'impression à son ouverture).
+    const svg = sheetRef.current?.querySelector("svg")?.outerHTML;
+    if (!svg) return;
+    const html = printableHtml(svg);
+    const win = window.open("", "_blank");
+    if (win) {
+      win.document.open();
+      win.document.write(html);
+      win.document.close();
+      return;
+    }
+    const ok = await exportFile(`etiquettes-${panel.name.replace(/\W+/g, "-").toLowerCase()}.html`, html, "text/html");
+    if (ok) toast("Ouvrez le fichier téléchargé : l'impression se lance automatiquement");
+  };
+
   return (
     <div>
       <div className="page-head">
@@ -45,14 +82,12 @@ ${svg}`;
               </option>
             ))}
           </select>
-          <button type="button" className="btn" onClick={download}>
-            <IconDownload size={16} /> Télécharger (SVG 1:1)
+          <button type="button" className="btn btn-ghost" onClick={download} title="Planche au format SVG, à l'échelle réelle">
+            <IconDownload size={16} /> SVG
           </button>
-          {!IS_ARTIFACT && (
-            <button type="button" className="btn btn-primary" onClick={() => window.print()}>
-              Imprimer
-            </button>
-          )}
+          <button type="button" className="btn btn-primary" onClick={printLabels}>
+            <IconPrinter size={16} /> Imprimer
+          </button>
         </div>
       </div>
 
@@ -161,7 +196,7 @@ ${svg}`;
           <div className="inspector-section">
             <p className="helpbox">
               Imprimez à <b>100 %</b> (sans « ajuster à la page »), en A4 paysage, sur papier ou sur étiquette adhésive, puis découpez le long du cadre. Les rangées plus larges
-              qu'une feuille sont coupées en deux bandes. {IS_ARTIFACT && "Ouvrez le fichier SVG téléchargé dans votre navigateur pour l'imprimer."}
+              qu'une feuille sont coupées en deux bandes. 
             </p>
           </div>
         </aside>
