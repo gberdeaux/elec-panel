@@ -87,13 +87,13 @@ export function CatalogPicker({
         <div className="catalog-layout">
           <nav className="catalog-cats" aria-label="Catégories">
             {CATEGORIES.map((c, i) => (
-              <button key={c.label} type="button" className="nav-item" aria-current={category === i ? "page" : undefined} onClick={() => setCategory(i)}>
-                <span className="nav-text">{c.label}</span>
+              <button key={c.label} type="button" className="cat-item" aria-current={category === i ? "page" : undefined} onClick={() => setCategory(i)}>
+                {c.label}
               </button>
             ))}
-            <button type="button" className="nav-item" onClick={() => setCreating(true)} style={{ marginTop: 8, color: "var(--brand)" }}>
+            <button type="button" className="cat-item" onClick={() => setCreating(true)} style={{ marginTop: 8, color: "var(--link)" }}>
               <IconPlus size={16} />
-              <span className="nav-text">Article personnalisé</span>
+              Article personnalisé
             </button>
           </nav>
           <div className="catalog-grid">

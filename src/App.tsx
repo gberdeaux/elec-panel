@@ -1,13 +1,15 @@
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
-import { analyzePanel, worstSeverity } from "./domain/analysis";
+import { analyzePanel } from "./domain/analysis";
 import { AnalysisView } from "./components/AnalysisView";
 import { AssistantView } from "./components/AssistantView";
+import { CompareView } from "./components/CompareView";
 import { DeviceDefs } from "./components/DeviceArt";
 import { HouseView } from "./components/HouseView";
 import { MaterialsView } from "./components/MaterialsView";
 import { OverviewView } from "./components/OverviewView";
 import { PanelView } from "./components/PanelView";
 import {
+  IconArrowRight,
   IconBolt,
   IconBox,
   IconChevronRight,
@@ -42,6 +44,7 @@ const VIEW_TITLE: Record<View, string> = {
   overview: "Vue d'ensemble",
   house: "Ma maison",
   panel: "Tableau",
+  compare: "Avant / après",
   analysis: "Conformité",
   materials: "Matériel",
   assistant: "Assistant IA",
@@ -106,8 +109,8 @@ export function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, [undo, redo]);
 
-  const severities = useMemo(
-    () => new Map(project.panels.map((p) => [p.id, worstSeverity(analyzePanel(p, project.house).filter((f) => f.severity === "danger" || f.severity === "nonconforme"))])),
+  const issues = useMemo(
+    () => new Map(project.panels.map((p) => [p.id, analyzePanel(p, project.house).filter((f) => f.severity === "danger" || f.severity === "nonconforme").length])),
     [project.panels, project.house],
   );
   const activePanel = project.panels.find((p) => p.id === project.activePanelId);
@@ -135,11 +138,11 @@ export function App() {
       <aside className="sidebar" data-open={navOpen} aria-label="Navigation">
         <div className="logo">
           <span className="logo-mark">
-            <IconBolt size={17} />
+            <IconBolt size={18} />
           </span>
           <span>
-            Quinze-Cent
-            <small>Tableaux NF C 15-100</small>
+            <b>Quinze-Cent</b>
+            <small>NF C 15-100 · Tableaux</small>
           </span>
         </div>
 
@@ -176,10 +179,15 @@ export function App() {
             >
               <IconPanel />
               <span className="nav-text">{p.name}</span>
-              <span className="status-dot" data-tone={p.rows.flat().length === 0 ? "empty" : severities.get(p.id) ?? "ok"} title={p.role === "existing" ? "Existant" : "Nouveau"} />
+              {p.rows.flat().length > 0 && (
+                <span className="nav-count" data-tone={issues.get(p.id) ? "danger" : "ok"} title={issues.get(p.id) ? "Points à corriger" : "Conforme"}>
+                  {issues.get(p.id) || "✓"}
+                </span>
+              )}
             </button>
           ))}
           <div className="nav-label">Analyse</div>
+          {navItem("compare", "Avant / après", <IconArrowRight />)}
           {navItem("analysis", "Conformité", <IconShield />)}
           {navItem("materials", "Matériel & achats", <IconBox />)}
           {navItem("assistant", "Assistant IA", <IconSparkles />)}
@@ -189,7 +197,7 @@ export function App() {
           <span className="save-status" data-status={status}>
             {STATUS_LABEL[status]}
           </span>
-          <div className="segmented" role="group" aria-label="Thème" style={{ alignSelf: "flex-start" }}>
+          <div className="theme-switch" role="group" aria-label="Thème">
             <button type="button" aria-pressed={theme === "light"} onClick={() => setTheme("light")} aria-label="Thème clair" title="Clair">
               <IconSun size={15} />
             </button>
@@ -243,7 +251,8 @@ export function App() {
           )}
           {view === "overview" && <OverviewView onNavigate={go} />}
           {view === "house" && <HouseView />}
-          {view === "panel" && <PanelView onAsk={ask} />}
+          {view === "panel" && <PanelView onAsk={ask} onNavigate={go} />}
+          {view === "compare" && <CompareView onNavigate={go} />}
           {view === "analysis" && <AnalysisView onAsk={ask} />}
           {view === "materials" && <MaterialsView />}
           {view === "assistant" && <AssistantView pending={pendingQuestion} onPendingHandled={() => setPendingQuestion(undefined)} />}

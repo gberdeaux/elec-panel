@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { type BomLine, bomToCsv, bomToText, bomTotals, computeBom } from "../domain/bom";
 import { KIND_LABEL, catalogById, leroyMerlinSearchUrl } from "../domain/catalog";
 import { exportFile } from "../store/persistence";
@@ -48,6 +48,10 @@ export function MaterialsView() {
 
   const lines = useMemo(() => (target ? computeBom(project, target, source) : []), [project, target, source]);
   const totals = bomTotals(lines);
+  const [filter, setFilter] = useState<"all" | "buy" | "stock">("all");
+  const toBuyLines = lines.filter((l) => l.toBuy > 0);
+  const bought = toBuyLines.filter((l) => project.inventory[l.key]?.bought).length;
+  const shown = lines.filter((l) => (filter === "buy" ? l.toBuy > 0 : filter === "stock" ? l.toBuy === 0 : true));
 
   if (!target) {
     return (
@@ -165,10 +169,35 @@ export function MaterialsView() {
               />
             </div>
           </div>
+          <div className="board-bar" style={{ gap: 16 }}>
+            <div className="segmented" role="group" aria-label="Filtrer">
+              <button type="button" aria-pressed={filter === "all"} onClick={() => setFilter("all")}>
+                Tout <span className="count">{lines.length}</span>
+              </button>
+              <button type="button" aria-pressed={filter === "buy"} onClick={() => setFilter("buy")}>
+                À acheter <span className="count">{toBuyLines.length}</span>
+              </button>
+              <button type="button" aria-pressed={filter === "stock"} onClick={() => setFilter("stock")}>
+                Déjà en stock <span className="count">{lines.length - toBuyLines.length}</span>
+              </button>
+            </div>
+            <span className="spacer" />
+            {toBuyLines.length > 0 && (
+              <div className="row" style={{ gap: 10, minWidth: 220 }}>
+                <span className="small muted">
+                  Courses : <b className="mono" style={{ color: "var(--text)" }}>{bought}</b>/{toBuyLines.length} achetés
+                </span>
+                <div className="progress" style={{ width: 120 }}>
+                  <span style={{ width: `${(bought / toBuyLines.length) * 100}%` }} />
+                </div>
+              </div>
+            )}
+          </div>
           <div className="table-wrap">
             <table className="data">
               <thead>
                 <tr>
+                  <th aria-label="Acheté" style={{ width: 44 }} />
                   <th>Article</th>
                   <th>Marque · référence</th>
                   <th className="r">Besoin</th>
@@ -180,8 +209,19 @@ export function MaterialsView() {
                 </tr>
               </thead>
               <tbody>
-                {lines.map((l) => (
-                  <tr key={l.key}>
+                {shown.map((l) => (
+                  <tr key={l.key} data-bought={l.toBuy > 0 && !!project.inventory[l.key]?.bought}>
+                    <td>
+                      {l.toBuy > 0 && (
+                        <input
+                          type="checkbox"
+                          className="check-buy"
+                          aria-label={`${l.label} acheté`}
+                          checked={!!project.inventory[l.key]?.bought}
+                          onChange={(e) => setInventory(l.key, { bought: e.target.checked || undefined })}
+                        />
+                      )}
+                    </td>
                     <td>
                       <div className="product">
                         <span className="product-thumb">
@@ -247,7 +287,7 @@ export function MaterialsView() {
               </tbody>
               <tfoot>
                 <tr>
-                  <td colSpan={2}>Total</td>
+                  <td colSpan={3}>Total</td>
                   <td className="r">{totals.items}</td>
                   <td className="r">{totals.reused}</td>
                   <td className="r">{totals.toBuy}</td>

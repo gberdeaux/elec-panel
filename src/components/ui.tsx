@@ -2,7 +2,7 @@ import { type ReactNode, useEffect, useMemo } from "react";
 import { create } from "zustand";
 import { SEVERITY_LABEL, analyzePanel } from "../domain/analysis";
 import type { Finding, House, Panel, Severity } from "../domain/types";
-import { IconBook, IconCheck, IconChevronRight, IconClose } from "./icons";
+import { IconBook, IconCheck, IconChevronRight, IconClose, IconWand } from "./icons";
 
 export function useFindings(panel: Panel | undefined, house: House): Finding[] {
   return useMemo(() => (panel ? analyzePanel(panel, house) : []), [panel, house]);
@@ -35,23 +35,34 @@ export function FindingCard({
   finding,
   onLocate,
   onAsk,
+  onFix,
+  fixLabel,
   open,
+  reference,
 }: {
   finding: Finding;
   onLocate?: () => void;
   onAsk?: () => void;
+  onFix?: () => void;
+  fixLabel?: string;
   open?: boolean;
+  reference?: string;
 }) {
   return (
     <article className="finding" data-sev={finding.severity}>
       <div className="finding-body">
         <div className="row" style={{ alignItems: "flex-start", flexWrap: "nowrap" }}>
           <div className="finding-title" style={{ flex: 1 }}>
+            {reference && <span className="mono" style={{ fontSize: "0.74rem", fontWeight: 700, color: "var(--muted)", marginRight: 6 }}>{reference}</span>}
             {finding.title}
           </div>
           <SeverityBadge severity={finding.severity} />
         </div>
         <p className="finding-detail">{finding.detail}</p>
+        <div className="finding-fix">
+          <IconCheck size={16} />
+          <span>{finding.fix}</span>
+        </div>
         <details open={open}>
           <summary>
             <IconChevronRight size={14} /> Ce que dit la norme
@@ -63,26 +74,69 @@ export function FindingCard({
             {finding.norm}
           </div>
         </details>
-        <div className="finding-fix">
-          <IconCheck size={16} />
-          <span>{finding.fix}</span>
-        </div>
-        {(onLocate || onAsk) && (
+        {(onLocate || onAsk || onFix) && (
           <div className="row" style={{ marginTop: 2 }}>
+            {onFix && (
+              <button type="button" className="btn btn-sm btn-primary" onClick={onFix}>
+                <IconWand size={14} /> {fixLabel ?? "Corriger"}
+              </button>
+            )}
             {onLocate && (
               <button type="button" className="btn btn-sm" onClick={onLocate}>
-                Voir sur le tableau
+                Voir
               </button>
             )}
             {onAsk && (
               <button type="button" className="btn btn-sm btn-ghost" onClick={onAsk}>
-                Demander à l'assistant
+                Expliquer
               </button>
             )}
           </div>
         )}
       </div>
     </article>
+  );
+}
+
+export function Stepper({ id, value, onChange, min = 0, max = 99 }: { id: string; value: number; onChange: (v: number) => void; min?: number; max?: number }) {
+  return (
+    <div className="stepper" role="group" aria-labelledby={`${id}-label`}>
+      <button type="button" aria-label="Moins" onClick={() => onChange(Math.max(min, value - 1))}>
+        −
+      </button>
+      <output id={id} aria-live="polite">
+        {value}
+      </output>
+      <button type="button" aria-label="Plus" onClick={() => onChange(Math.min(max, value + 1))}>
+        +
+      </button>
+    </div>
+  );
+}
+
+export function Chips<T extends string | number>({
+  options,
+  value,
+  onChange,
+  label,
+  recommended,
+  text,
+}: {
+  options: { value: T; label: string }[];
+  value: T | undefined;
+  onChange: (v: T) => void;
+  label: string;
+  recommended?: T;
+  text?: boolean;
+}) {
+  return (
+    <div className={`chips${text ? " text" : ""}`} role="group" aria-label={label}>
+      {options.map((o) => (
+        <button key={String(o.value)} type="button" aria-pressed={value === o.value} data-recommended={recommended === o.value} onClick={() => onChange(o.value)}>
+          {o.label}
+        </button>
+      ))}
+    </div>
   );
 }
 

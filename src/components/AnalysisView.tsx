@@ -1,9 +1,11 @@
 import { useMemo, useState } from "react";
 import { SEVERITY_LABEL, SEVERITY_ORDER, analyzePanel, verdict } from "../domain/analysis";
 import type { Panel, Severity } from "../domain/types";
+import { autoFix, quickFixFor } from "../domain/fixes";
+import { repereMap } from "../domain/panel";
 import { useStore } from "../store/store";
-import { IconCheck, IconPanel, IconSparkles } from "./icons";
-import { Badge, FindingCard, ScoreRing, complianceScore } from "./ui";
+import { IconCheck, IconPanel, IconSparkles, IconWand } from "./icons";
+import { Badge, FindingCard, ScoreRing, complianceScore, toast } from "./ui";
 
 const STATUS = {
   conforme: { tone: "ok", label: "Conforme", text: "Aucune non-conformité détectée d'après les informations saisies." },
@@ -15,6 +17,7 @@ export function AnalysisView({ onAsk }: { onAsk: (q: string) => void }) {
   const project = useStore((s) => s.project);
   const openPanel = useStore((s) => s.openPanel);
   const selectDevice = useStore((s) => s.selectDevice);
+  const replacePanel = useStore((s) => s.replacePanel);
   const [panelId, setPanelId] = useState(project.activePanelId);
   const [filter, setFilter] = useState<Severity | "all">("all");
   const panel = project.panels.find((p) => p.id === panelId) ?? project.panels[0];
@@ -27,6 +30,8 @@ export function AnalysisView({ onAsk }: { onAsk: (q: string) => void }) {
   const v = verdict(current.findings);
   const status = STATUS[v.status];
   const shown = current.findings.filter((f) => filter === "all" || f.severity === filter);
+  const reperes = useMemo(() => repereMap(panel), [panel]);
+  const seriousCount = v.counts.danger + v.counts.nonconforme;
 
   const locate = (p: Panel, deviceId: string) => {
     openPanel(p.id);
@@ -103,6 +108,18 @@ export function AnalysisView({ onAsk }: { onAsk: (q: string) => void }) {
             </div>
           </div>
           <div className="stack" style={{ gap: 8 }}>
+            {panel.role === "new" && seriousCount > 0 && (
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => {
+                  replacePanel(autoFix(panel, project.house, project.customCatalog));
+                  toast("Corrections appliquées");
+                }}
+              >
+                <IconWand size={16} /> Tout corriger
+              </button>
+            )}
             <button type="button" className="btn" onClick={() => openPanel(panel.id)}>
               <IconPanel size={16} /> Ouvrir le tableau
             </button>
@@ -123,14 +140,27 @@ export function AnalysisView({ onAsk }: { onAsk: (q: string) => void }) {
         </div>
 
         <div className="findings">
-          {shown.map((f) => (
+          {shown.map((f) => {
+            const fix = panel.role === "new" ? quickFixFor(f, panel, project.house, project.customCatalog) : undefined;
+            return (
             <FindingCard
               key={f.id}
               finding={f}
+              reference={f.deviceIds[0] ? reperes.get(f.deviceIds[0]) : undefined}
+              fixLabel={fix?.label}
+              onFix={
+                fix
+                  ? () => {
+                      replacePanel(fix.apply(panel));
+                      toast(fix.label);
+                    }
+                  : undefined
+              }
               onLocate={f.deviceIds.length ? () => locate(panel, f.deviceIds[0]) : undefined}
               onAsk={() => onAsk(`Explique-moi ce problème sur « ${panel.name} » et comment le corriger concrètement : « ${f.title} ».`)}
             />
-          ))}
+            );
+          })}
           {shown.length === 0 && (
             <div className="card empty">
               <span className="empty-icon">
