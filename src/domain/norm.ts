@@ -261,6 +261,23 @@ export const USAGES: Record<CircuitUsage, UsageSpec> = {
     normText:
       "Congélateur : circuit spécialisé 20 A en 2,5 mm², un seul appareil. Un différentiel haute immunité (type A-SI / Hpi) limite les coupures intempestives.",
   },
+  refrigerateur: {
+    label: "Réfrigérateur",
+    group: "specialise",
+    pointsLabel: "appareil",
+    defaultRating: 20,
+    defaultSection: 2.5,
+    defaultPoints: 1,
+    allowed: [
+      { rating: 16, section: 1.5, maxPoints: 1 },
+      { rating: 20, section: 2.5, maxPoints: 1 },
+    ],
+    dedicated: true,
+    rcdAdvised: ["A-SI"],
+    normRef: "NF C 15-100-10 · circuits prises et spécialisés",
+    normText:
+      "Réfrigérateur : il peut être branché sur une prise du circuit de la cuisine. Un circuit dédié n'est pas obligatoire mais conseillé (20 A en 2,5 mm² ou 16 A en 1,5 mm², un seul appareil), de préférence sous un différentiel haute immunité (A-SI / Hpi) pour ne pas perdre la chaîne du froid en cas de coupure intempestive.",
+  },
   micro_ondes: {
     label: "Micro-ondes",
     group: "specialise",
@@ -409,6 +426,7 @@ export const USAGE_ORDER: CircuitUsage[] = [
   "seche_linge",
   "lave_vaisselle",
   "congelateur",
+  "refrigerateur",
   "micro_ondes",
   "vmc",
   "irve_prise",

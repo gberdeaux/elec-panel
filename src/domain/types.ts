@@ -36,6 +36,7 @@ export type CircuitUsage =
   | "seche_linge"
   | "lave_vaisselle"
   | "congelateur"
+  | "refrigerateur"
   | "micro_ondes"
   | "vmc"
   | "irve_prise"

@@ -29,7 +29,7 @@ export interface PhotoResult {
 
 const ICONS = [
   "eclairage", "prises", "prises_cuisine", "volets", "chauffage", "chauffe_eau", "plaque", "four", "lave_linge", "seche_linge",
-  "lave_vaisselle", "congelateur", "micro_ondes", "vmc", "irve_prise", "irve_borne", "pac_clim", "chaudiere", "poele", "eau", "sdb",
+  "lave_vaisselle", "congelateur", "refrigerateur", "micro_ondes", "vmc", "irve_prise", "irve_borne", "pac_clim", "chaudiere", "poele", "eau", "sdb",
   "tv", "informatique", "garage", "portail", "exterieur", "piscine", "alarme", "teleruptor", "contactor", "rcd", "spd", "autre",
 ] as const;
 

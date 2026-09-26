@@ -37,6 +37,8 @@ describe("calibre conseillé", () => {
     expect(recommendedRating("eclairage", 10, 1.5)).toBe(10);
     expect(recommendedRating("eclairage", 16, 1.5)).toBe(16);
     expect(recommendedRating("chaudiere", 10, 1.5)).toBe(10);
+    expect(recommendedRating("refrigerateur", 16, 1.5)).toBe(16);
+    expect(recommendedRating("refrigerateur", 20, 2.5)).toBe(20);
   });
 
   it("corrige un calibre non admis en tenant compte de la section", () => {

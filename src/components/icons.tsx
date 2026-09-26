@@ -287,6 +287,12 @@ const PICTOS: Record<string, ReactNode> = {
       <path d="M4.8 2.3 6 3.4l1.2-1.1M4.8 9.7 6 8.6l1.2 1.1" />
     </>
   ),
+  refrigerateur: (
+    <>
+      <rect x="2.8" y="1.2" width="6.4" height="9.6" rx="1" />
+      <path d="M2.8 4.6h6.4M4.2 2.6v1M4.2 6v2" />
+    </>
+  ),
   micro_ondes: (
     <>
       <rect x="1.5" y="2.5" width="9" height="7" rx="1" />
@@ -423,6 +429,7 @@ export const PICTO_CHOICES: { key: string; label: string }[] = [
   { key: "seche_linge", label: "Sèche-linge" },
   { key: "lave_vaisselle", label: "Lave-vaisselle" },
   { key: "congelateur", label: "Congélateur" },
+  { key: "refrigerateur", label: "Réfrigérateur" },
   { key: "micro_ondes", label: "Micro-ondes" },
   { key: "vmc", label: "VMC" },
   { key: "irve_prise", label: "Voiture" },

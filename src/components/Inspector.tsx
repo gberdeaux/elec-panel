@@ -28,6 +28,7 @@ const SHORT: Partial<Record<CircuitUsage, string>> = {
   lave_vaisselle: "Lave-vaisselle",
   seche_linge: "Sèche-linge",
   congelateur: "Congélateur",
+  refrigerateur: "Réfrigérateur",
   micro_ondes: "Micro-ondes",
 };
 
