@@ -14,6 +14,8 @@ import {
   heatingMaxPower,
   isTypeAOrBetter,
   maxRatingForSection,
+  minSectionForRating,
+  ratingAllowed,
   maxPointsFor,
   mm2,
 } from "./norm";
@@ -63,12 +65,18 @@ export function planCircuit(source: Device, notes: string[]): Planned[] {
     );
   }
 
+  // Un calibre déjà admis pour l'usage est conservé (VMC en 2 A, éclairage en 10 A…).
+  const keep = (exp: { rating: number; section: number }) =>
+    ratingAllowed(c.usage, source.rating, c.sectionMm2, c.powerW)
+      ? { rating: source.rating!, section: Math.max(minSectionForRating(source.rating!), c.sectionMm2 ? Math.min(exp.section, c.sectionMm2) : exp.section) }
+      : exp;
+
   if (spec.powerBased) {
-    const exp = expectedProtection(c.usage, c.powerW, c.sectionMm2);
+    const exp = keep(expectedProtection(c.usage, c.powerW, c.sectionMm2));
     return [withSection(c, exp, source.label, notes)];
   }
 
-  const exp = expectedProtection(c.usage, c.powerW, c.sectionMm2 ?? spec.defaultSection);
+  const exp = keep(expectedProtection(c.usage, c.powerW, c.sectionMm2 ?? spec.defaultSection));
   const max = maxPointsFor(c.usage, exp.rating);
   let parts = max && c.points > max ? Math.ceil(c.points / max) : 1;
   if (c.usage === "volets" && c.points >= 4) parts = Math.max(parts, 2);

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { analyzePanel, rcdLoad, surgeProtection, verdict } from "./analysis";
 import { bomTotals, computeBom, isReusable } from "./bom";
 import { generateCompliantPanel, planCircuit } from "./generator";
-import { expectedProtection, maxPointsFor, maxRatingForSection } from "./norm";
+import { expectedProtection, maxPointsFor, maxRatingForSection, recommendedRating } from "./norm";
 import { circuitsByRcd, newId, protectionMap } from "./panel";
 import { defaultHouse, samplePanel, sampleProject } from "./sample";
 import type { Device, Panel } from "./types";
@@ -28,6 +28,27 @@ describe("norme", () => {
     expect(maxPointsFor("prises", 20)).toBe(12);
     expect(maxPointsFor("eclairage", 16)).toBe(8);
     expect(maxPointsFor("lave_linge", 20)).toBe(1);
+  });
+});
+
+describe("calibre conseillé", () => {
+  it("accepte tout calibre admis par la norme", () => {
+    expect(recommendedRating("vmc", 2, 1.5)).toBe(2);
+    expect(recommendedRating("eclairage", 10, 1.5)).toBe(10);
+    expect(recommendedRating("eclairage", 16, 1.5)).toBe(16);
+    expect(recommendedRating("chaudiere", 10, 1.5)).toBe(10);
+  });
+
+  it("corrige un calibre non admis en tenant compte de la section", () => {
+    expect(recommendedRating("eclairage", 20, 1.5)).toBe(16);
+    expect(recommendedRating("prises", 25, 2.5)).toBe(20);
+    expect(recommendedRating("lave_linge", 20, 1.5)).toBe(16);
+    expect(recommendedRating("vmc", undefined, 1.5)).toBe(2);
+  });
+
+  it("vérifie la puissance du chauffage", () => {
+    expect(recommendedRating("chauffage", 20, 2.5, 4000)).toBe(20);
+    expect(recommendedRating("chauffage", 16, 2.5, 4000)).toBe(20);
   });
 });
 
@@ -106,6 +127,15 @@ describe("génération du tableau conforme", () => {
     expect(dishwasher.rating).toBe(20);
     expect(dishwasher.circuit.rewire).toBe(true);
     expect(notes.some((n) => n.includes("Recâbler"))).toBe(true);
+  });
+
+  it("conserve les calibres déjà admis (VMC 2 A, éclairage 10 A)", () => {
+    const { panel } = generateCompliantPanel(source, house, { brand: "Schneider", modulesPerRow: 13 });
+    const vmc = panel.rows.flat().find((d) => d.circuit?.usage === "vmc");
+    expect(vmc?.rating).toBe(2);
+    const withTen = { ...source, rows: source.rows.map((r) => r.map((d) => (d.circuit?.usage === "eclairage" ? { ...d, rating: 10 } : d))) };
+    const lights = generateCompliantPanel(withTen, house, { brand: "Schneider", modulesPerRow: 13 }).panel.rows.flat().filter((d) => d.circuit?.usage === "eclairage");
+    expect(lights.every((d) => d.rating === 10)).toBe(true);
   });
 
   it("protège une borne de recharge par un disjoncteur différentiel dédié", () => {

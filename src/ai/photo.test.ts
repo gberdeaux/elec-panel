@@ -42,7 +42,7 @@ const PHOTO: PhotoResult = {
     [
       id("Différentiel Technique"),
       lg(20, "Adoucisseur + Prise", "prises", "eau"),
-      lg(20, "Chaudière", "autre", "chaudiere"),
+      lg(20, "Chaudière", "chaudiere", "chaudiere"),
       lg(20, "Garage", "prises", "prises"),
       { kind: "blank", modules: 2 },
       lg(20, "Télérupteur Salon / Salle à manger", "eclairage", "teleruptor"),

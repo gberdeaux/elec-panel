@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { findingsForDevice } from "../domain/analysis";
 import { type CatalogKind, KIND_LABEL, deviceFromCatalog } from "../domain/catalog";
-import { SECTIONS, STANDARD_RATINGS, USAGES, USAGE_ORDER, expectedProtection, maxPointsFor, maxRatingForSection, mm2 } from "../domain/norm";
+import { SECTIONS, STANDARD_RATINGS, USAGES, USAGE_ORDER, expectedProtection, maxPointsFor, mm2, recommendedRating as recommendRating } from "../domain/norm";
 import { deviceTitle, findDevice, isCircuitDevice, protectionMap, repereMap } from "../domain/panel";
 import { BRANDS, type Brand, type Circuit, type CircuitUsage, type Condition, type Curve, type Device, type Finding, type Panel, type Poles, type RcdType } from "../domain/types";
 import { useStore } from "../store/store";
@@ -19,6 +19,7 @@ const SHORT: Partial<Record<CircuitUsage, string>> = {
   irve_prise: "Prise VE",
   irve_borne: "Borne VE",
   pac_clim: "PAC / clim",
+  chaudiere: "Chaudière",
   exterieur: "Extérieur",
   informatique: "Informatique",
   volets: "Volets",
@@ -61,8 +62,7 @@ export function Inspector({ panel, device, findings, onAsk }: { panel: Panel; de
   const spec = c ? USAGES[c.usage] : undefined;
   const expected = c ? expectedProtection(c.usage, c.powerW, c.sectionMm2) : undefined;
   const maxPoints = c ? maxPointsFor(c.usage, device.rating) : undefined;
-  const sectionCap = c?.sectionMm2 ? maxRatingForSection(c.sectionMm2) : undefined;
-  const recommendedRating = expected ? Math.min(expected.rating, sectionCap ?? expected.rating) : undefined;
+  const recommendedRating = c ? recommendRating(c.usage, device.rating, c.sectionMm2, c.powerW) : undefined;
   const showTiles = isCircuitDevice(device) && (!c || changingUsage);
 
   return (

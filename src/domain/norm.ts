@@ -351,6 +351,23 @@ export const USAGES: Record<CircuitUsage, UsageSpec> = {
     normText:
       "Circuits extérieurs (jardin, portail, dépendance) : mêmes règles que les prises (8 prises en 16 A / 1,5 mm², 12 en 20 A / 2,5 mm²), matériel IP adapté. Une dépendance avec plusieurs pièces peut nécessiter son propre tableau.",
   },
+  chaudiere: {
+    label: "Chaudière (gaz, fioul)",
+    group: "specialise",
+    pointsLabel: "appareil",
+    defaultRating: 16,
+    defaultSection: 1.5,
+    defaultPoints: 1,
+    allowed: [
+      { rating: 10, section: 1.5, maxPoints: 1 },
+      { rating: 16, section: 1.5, maxPoints: 1 },
+      { rating: 20, section: 2.5, maxPoints: 1 },
+    ],
+    dedicated: true,
+    normRef: "NF C 15-100-10 · circuits spécialisés",
+    normText:
+      "Chaudière gaz ou fioul : alimentée par un circuit dédié, disjoncteur 10 ou 16 A en 1,5 mm² (20 A en 2,5 mm² si la notice le demande), un seul appareil par circuit. Différentiel de type AC ou A.",
+  },
   informatique: {
     label: "Informatique / box",
     group: "prises",
@@ -397,6 +414,7 @@ export const USAGE_ORDER: CircuitUsage[] = [
   "irve_prise",
   "irve_borne",
   "pac_clim",
+  "chaudiere",
   "exterieur",
   "informatique",
   "autre",
@@ -420,7 +438,9 @@ export function expectedProtection(
     return { rating, section: minSectionForRating(rating) };
   }
   if (spec.allowed && section) {
-    const match = [...spec.allowed].reverse().find((a) => a.section <= section);
+    // Le calibre usuel de l'usage s'il convient à la section, sinon le plus fort admis.
+    const fitting = spec.allowed.filter((a) => a.section <= section);
+    const match = fitting.find((a) => a.rating === spec.defaultRating) ?? fitting[fitting.length - 1];
     if (match) return { rating: match.rating, section: match.section };
   }
   return { rating: spec.defaultRating, section: spec.defaultSection };
@@ -453,3 +473,24 @@ export function isTypeAOrBetter(t?: RcdType): boolean {
 
 /** Section au format français : 1,5 mm². */
 export const mm2 = (n: number | undefined) => (n === undefined ? "?" : String(n).replace(".", ","));
+
+/** Le calibre est-il admis pour cet usage, compte tenu de la section et de la puissance ? */
+export function ratingAllowed(usage: CircuitUsage, rating: number | undefined, section?: number, powerW?: number): boolean {
+  if (!rating) return false;
+  if (section && rating > maxRatingForSection(section)) return false;
+  const spec = USAGES[usage];
+  if (usage === "chauffage") return !powerW || powerW <= heatingMaxPower(rating);
+  if (spec.powerBased) return !powerW || rating >= expectedProtection(usage, powerW).rating;
+  if (!spec.allowed) return true;
+  return spec.allowed.some((a) => a.rating === rating && (!section || a.section <= section));
+}
+
+/**
+ * Calibre à conseiller : le calibre actuel s'il est admis (2 A pour une VMC, 10 A pour
+ * l'éclairage…), sinon le calibre attendu, plafonné par la section des fils.
+ */
+export function recommendedRating(usage: CircuitUsage, rating: number | undefined, section?: number, powerW?: number): number {
+  if (ratingAllowed(usage, rating, section, powerW)) return rating!;
+  const exp = expectedProtection(usage, powerW, section);
+  return section ? Math.min(exp.rating, maxRatingForSection(section)) : exp.rating;
+}

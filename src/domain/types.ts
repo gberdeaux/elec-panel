@@ -41,6 +41,7 @@ export type CircuitUsage =
   | "irve_prise"
   | "irve_borne"
   | "pac_clim"
+  | "chaudiere"
   | "exterieur"
   | "informatique"
   | "autre";
