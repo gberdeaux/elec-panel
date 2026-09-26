@@ -1,0 +1,33 @@
+{
+  "name": "elec-panel",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Quinze-Cent : simulateur de tableau électrique et vérification NF C 15-100",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "build:artifact": "tsc -b && vite build --mode artifact && node scripts/build-artifact.mjs",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.128.0",
+    "immer": "^11.1.18",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "zustand": "^5.0.15"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.3",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.1",
+    "vite-plugin-singlefile": "^2.3.3",
+    "vitest": "^5.0.2"
+  }
+}
