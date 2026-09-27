@@ -735,3 +735,47 @@ export function rcdLoadReport(panel: Panel, rcd: Device, house: House): RcdLoadR
 export function suitableRcdRating(load: number, agcpRating: number): number | undefined {
   return [25, 40, 63].find((r) => r >= agcpRating || r >= load);
 }
+
+export interface RowSummaryLine {
+  label: string;
+  rating: number;
+  count: number;
+  rawSum: number;
+  load: number;
+}
+
+export interface RowSummary {
+  row: number;
+  circuits: number;
+  rawSum: number;
+  load: number;
+  lines: RowSummaryLine[];
+  rcds: { device: Device; report: RcdLoadReport }[];
+}
+
+/** Totaux d'une rangée, détaillés par type de circuit et calibre, pour aider à répartir. */
+export function rowSummaries(panel: Panel, house: House): RowSummary[] {
+  return panel.rows.map((row, r) => {
+    const circuits = row.filter(isCircuitDevice);
+    const lines = new Map<string, RowSummaryLine>();
+    for (const d of circuits) {
+      const rating = d.rating ?? 0;
+      const label = d.circuit ? USAGES[d.circuit.usage].label : "Non décrit";
+      const key = `${label}|${rating}`;
+      const line = lines.get(key) ?? { label, rating, count: 0, rawSum: 0, load: 0 };
+      line.count += 1;
+      line.rawSum += rating;
+      line.load += rcdLoad([d]);
+      lines.set(key, line);
+    }
+    const sorted = [...lines.values()].sort((a, b) => b.rawSum - a.rawSum || a.label.localeCompare(b.label, "fr"));
+    return {
+      row: r,
+      circuits: circuits.length,
+      rawSum: sorted.reduce((s, l) => s + l.rawSum, 0),
+      load: sorted.reduce((s, l) => s + l.load, 0),
+      lines: sorted,
+      rcds: row.filter((d) => d.kind === "rcd").map((d) => ({ device: d, report: rcdLoadReport(panel, d, house) })),
+    };
+  });
+}

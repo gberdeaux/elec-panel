@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { analyzePanel, rcdLoad, rcdLoadReport, suitableRcdRating, surgeProtection, verdict } from "./analysis";
+import { analyzePanel, rcdLoad, rcdLoadReport, rowSummaries, suitableRcdRating, surgeProtection, verdict } from "./analysis";
 import { bomTotals, computeBom, isReusable } from "./bom";
 import { generateCompliantPanel, planCircuit } from "./generator";
 import { expectedProtection, maxPointsFor, maxRatingForSection, recommendedRating } from "./norm";
@@ -99,6 +99,17 @@ describe("tableau existant d'exemple", () => {
     expect(suitableRcdRating(112, 45)).toBe(63);
     expect(suitableRcdRating(33, 60)).toBe(40);
     expect(suitableRcdRating(112, 90)).toBeUndefined();
+  });
+
+  it("résume chaque rangée par type de circuit et calibre", () => {
+    const [first] = rowSummaries(panel, defaultHouse());
+    const prises = first.lines.find((l) => l.label === "Prises de courant" && l.rating === 20)!;
+    expect(prises.count).toBe(3);
+    expect(prises.rawSum).toBe(60);
+    expect(prises.load).toBe(30);
+    expect(first.rawSum).toBe(204);
+    expect(first.load).toBe(112);
+    expect(first.rcds[0].report.status).toBe("insuffisant");
   });
 
   it("calcule la charge d'un différentiel selon la règle de l'aval", () => {
