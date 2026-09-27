@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { findingsForDevice } from "../domain/analysis";
+import { findingsForDevice, rcdLoadReport, suitableRcdRating } from "../domain/analysis";
 import { type CatalogKind, KIND_LABEL, deviceFromCatalog } from "../domain/catalog";
 import { SECTIONS, STANDARD_RATINGS, USAGES, USAGE_ORDER, expectedProtection, maxPointsFor, mm2, recommendedRating as recommendRating } from "../domain/norm";
 import { deviceTitle, findDevice, isCircuitDevice, protectionMap, repereMap } from "../domain/panel";
@@ -232,6 +232,8 @@ export function Inspector({ panel, device, findings, onAsk }: { panel: Panel; de
         </div>
       )}
 
+      {device.kind === "rcd" && <RcdLoadSection panel={panel} device={device} />}
+
       {own.length > 0 && (
         <div className="inspector-section">
           <h3>Constats sur {repere ?? "cet appareil"}</h3>
@@ -398,6 +400,57 @@ export function Inspector({ panel, device, findings, onAsk }: { panel: Panel; de
           }}
         />
       )}
+    </div>
+  );
+}
+
+function RcdLoadSection({ panel, device }: { panel: Panel; device: Device }) {
+  const house = useStore((s) => s.project.house);
+  const update = useStore((s) => s.updateDevice);
+  const r = rcdLoadReport(panel, device, house);
+  const ok = r.status !== "insuffisant";
+  const nextRating = suitableRcdRating(r.load, r.agcp);
+  return (
+    <div className="inspector-section">
+      <h3>Charge du différentiel</h3>
+      <div className="delta" style={{ gridTemplateColumns: "minmax(0, 1fr) auto", gap: "6px 14px", fontSize: "0.86rem" }}>
+        <span>Circuits protégés</span>
+        <b className="mono" style={{ color: r.circuits > 8 ? "var(--danger)" : undefined }}>{r.circuits} / 8</b>
+        <span>Somme brute des disjoncteurs</span>
+        <span className="mono muted">{r.rawSum} A</span>
+        <span>Charge calculée (norme)</span>
+        <b className="mono">{Math.round(r.load)} A</b>
+        <span>Calibre du différentiel</span>
+        <b className="mono">{r.rating ?? "?"} A</b>
+        <span>Disjoncteur de branchement</span>
+        <span className="mono muted">{r.agcp} A</span>
+      </div>
+      <div className="recommend" data-ok={ok}>
+        {ok && <IconCheck size={16} />}
+        <span style={{ flex: 1, minWidth: 180 }}>
+          {r.status === "amont" && <>Conforme : le différentiel est au moins égal au disjoncteur de branchement ({r.agcp} A), quelle que soit la charge en aval.</>}
+          {r.status === "aval" && <>Conforme : la charge calculée ({Math.round(r.load)} A) ne dépasse pas le calibre du différentiel.</>}
+          {r.status === "insuffisant" && (
+            <>
+              Calibre insuffisant : {Math.round(r.load)} A de charge calculée pour un différentiel de {r.rating ?? "?"} A, inférieur au disjoncteur de branchement ({r.agcp} A).
+            </>
+          )}
+        </span>
+        {r.status === "insuffisant" && nextRating && nextRating !== r.rating && (
+          <button type="button" className="btn btn-sm btn-primary" onClick={() => update(panel.id, device.id, { rating: nextRating, catalogId: undefined })}>
+            Passer en {nextRating} A
+          </button>
+        )}
+        {r.status === "insuffisant" && !nextRating && <span className="small">Répartissez des circuits sur un autre différentiel.</span>}
+      </div>
+      <details>
+        <summary className="xsmall" style={{ cursor: "pointer", color: "var(--link)", fontWeight: 600 }}>
+          Comment est calculée la charge ?
+        </summary>
+        <p className="helpbox" style={{ marginTop: 6 }}>
+          La somme brute des disjoncteurs n'est pas le bon critère : tous les circuits ne consomment pas leur calibre en même temps. La norme retient 100 % des disjoncteurs de chauffage et de chauffe-eau et 50 % des autres (règle de l'aval). Le différentiel est aussi conforme s'il est au moins égal au calibre du disjoncteur de branchement (règle de l'amont).
+        </p>
+      </details>
     </div>
   );
 }

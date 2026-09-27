@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { analyzePanel, rcdLoad, surgeProtection, verdict } from "./analysis";
+import { analyzePanel, rcdLoad, rcdLoadReport, suitableRcdRating, surgeProtection, verdict } from "./analysis";
 import { bomTotals, computeBom, isReusable } from "./bom";
 import { generateCompliantPanel, planCircuit } from "./generator";
 import { expectedProtection, maxPointsFor, maxRatingForSection, recommendedRating } from "./norm";
@@ -85,6 +85,20 @@ describe("tableau existant d'exemple", () => {
       expect(ids, rule).toContain(rule);
     }
     expect(verdict(analyzePanel(panel, defaultHouse())).status).toBe("dangereux");
+  });
+
+  it("explique le dimensionnement d'un différentiel", () => {
+    const rcd = panel.rows[0][0];
+    const house = defaultHouse();
+    const report = rcdLoadReport(panel, rcd, house);
+    expect(report.circuits).toBe(10);
+    expect(report.rawSum).toBeGreaterThan(report.load);
+    expect(report.status).toBe("insuffisant");
+    expect(rcdLoadReport(panel, { ...rcd, rating: 63 }, house).status).toBe("amont");
+    expect(rcdLoadReport(panel, rcd, { ...house, agcpRating: 30 }).status).toBe("amont");
+    expect(suitableRcdRating(112, 45)).toBe(63);
+    expect(suitableRcdRating(33, 60)).toBe(40);
+    expect(suitableRcdRating(112, 90)).toBeUndefined();
   });
 
   it("calcule la charge d'un différentiel selon la règle de l'aval", () => {

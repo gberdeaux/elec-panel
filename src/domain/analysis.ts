@@ -407,7 +407,12 @@ export function analyzePanel(panel: Panel, house: House): Finding[] {
         detail: `Charge calculée : ${load.toFixed(0)} A (chauffage et chauffe-eau comptés à 100 %, autres circuits à 50 %), pour un différentiel de ${rcd.rating} A.`,
         norm: "Le calibre de l'interrupteur différentiel est au moins égal au calibre du disjoncteur de branchement (règle de l'amont) ou à la somme des disjoncteurs chauffage/chauffe-eau + 0,5 × la somme des autres disjoncteurs qu'il protège (règle de l'aval).",
         normRef: "NF C 15-100-10 · calcul de l'intensité",
-        fix: `Choisir un différentiel de ${load <= 40 ? 40 : 63} A, ou répartir les circuits lourds sur un autre différentiel.`,
+        fix: (() => {
+          const target = suitableRcdRating(load, house.agcpRating);
+          return target
+            ? `Choisir un différentiel de ${target} A${target >= house.agcpRating ? ` (au moins égal au disjoncteur de branchement de ${house.agcpRating} A)` : ""}, ou répartir les circuits lourds sur un autre différentiel.`
+            : "Répartir une partie des circuits (en priorité chauffage et chauffe-eau) sur un autre différentiel.";
+        })(),
         deviceIds: [rcd.id],
       });
     }
@@ -699,4 +704,34 @@ export function findingsForDevice(findings: Finding[], id: string): Finding[] {
 
 export function worstSeverity(findings: Finding[]): Severity | undefined {
   return SEVERITY_ORDER.find((s) => findings.some((f) => f.severity === s));
+}
+
+export interface RcdLoadReport {
+  circuits: number;
+  rawSum: number;
+  load: number;
+  rating?: number;
+  agcp: number;
+  status: "amont" | "aval" | "insuffisant";
+}
+
+/** Détail du dimensionnement d'un interrupteur différentiel (règles de l'amont et de l'aval). */
+export function rcdLoadReport(panel: Panel, rcd: Device, house: House): RcdLoadReport {
+  const list = circuitsByRcd(panel).get(rcd.id) ?? [];
+  const load = rcdLoad(list);
+  const rating = rcd.rating;
+  const status = rating && rating >= house.agcpRating ? "amont" : rating && load <= rating ? "aval" : "insuffisant";
+  return {
+    circuits: list.length,
+    rawSum: list.reduce((s, d) => s + (d.rating ?? 0), 0),
+    load,
+    rating,
+    agcp: house.agcpRating,
+    status,
+  };
+}
+
+/** Plus petit calibre d'interrupteur différentiel conforme (règle de l'amont ou de l'aval). */
+export function suitableRcdRating(load: number, agcpRating: number): number | undefined {
+  return [25, 40, 63].find((r) => r >= agcpRating || r >= load);
 }
