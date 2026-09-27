@@ -1,7 +1,7 @@
 import { type CSSProperties, type DragEvent, type RefObject, useEffect, useMemo, useRef, useState } from "react";
-import { findingsForDevice, worstSeverity } from "../domain/analysis";
+import { findingsForDevice, rcdLoadReport, rowSummaries, worstSeverity } from "../domain/analysis";
 import { USAGES } from "../domain/norm";
-import { deviceTitle, isCircuitDevice, isHighSensitivity, protectionMap, repereMap, rowModules } from "../domain/panel";
+import { deviceTitle, findDevice, isCircuitDevice, isHighSensitivity, protectionMap, repereMap, rowModules } from "../domain/panel";
 import { DEFAULT_LABEL_SETTINGS, type Device, type Finding, type Panel } from "../domain/types";
 import { useStore } from "../store/store";
 import { LabelStrip } from "./Labels";
@@ -9,6 +9,8 @@ import { DEVICE_H, DeviceArt, MODULE_MM, NOSE_H, NOSE_Y, skinOf } from "./Device
 import { IconPlus } from "./icons";
 
 export type PanelViewMode = "front" | "open";
+
+const NL = String.fromCharCode(10);
 
 /** Entraxe réel entre deux rangées d'un coffret résidentiel (Resi9, Drivia, Gamma). */
 export const ROW_PITCH_MM = 125;
@@ -77,8 +79,29 @@ export function PanelVisual({ panel, findings, mode, selectedId, readOnly, maxSc
   const guards = useMemo(() => protectionMap(panel), [panel]);
   const reperes = useMemo(() => repereMap(panel), [panel]);
   const labels = useStore((st) => st.project.labelSettings) ?? DEFAULT_LABEL_SETTINGS;
+  const house = useStore((st) => st.project.house);
   const [dragId, setDragId] = useState<string>();
   const [drop, setDrop] = useState<{ row: number; index: number }>();
+
+  // Compteurs de charge : pendant un glisser-déposer, on simule le déplacement pour les mettre à jour en direct.
+  const meterPanel = useMemo(() => {
+    if (!dragId || !drop) return panel;
+    const loc = findDevice(panel, dragId);
+    if (!loc) return panel;
+    const rows = panel.rows.map((r) => [...r]);
+    const [dev] = rows[loc.row].splice(loc.index, 1);
+    while (rows.length <= drop.row) rows.push([]);
+    const index = loc.row === drop.row && drop.index > loc.index ? drop.index - 1 : drop.index;
+    rows[drop.row].splice(Math.max(0, Math.min(index, rows[drop.row].length)), 0, dev);
+    return { ...panel, rows };
+  }, [panel, dragId, drop]);
+  const meters = useMemo(() => {
+    const summaries = rowSummaries(meterPanel, house);
+    return summaries.map((sum) => ({
+      sum,
+      rcds: meterPanel.rows[sum.row].filter((d) => d.kind === "rcd").map((d) => ({ device: d, report: rcdLoadReport(meterPanel, d, house) })),
+    }));
+  }, [meterPanel, house]);
 
   const rowCount = Math.max(panel.enclosure.rows, panel.rows.length);
   const mpr = panel.enclosure.modulesPerRow;
@@ -244,6 +267,29 @@ export function PanelVisual({ panel, findings, mode, selectedId, readOnly, maxSc
                 <span className="prow-index" aria-hidden="true">
                   {r + 1}
                 </span>
+                {meters[r] && meters[r].rcds.length > 0 && (
+                  <div className="row-meter" data-dragging={!!dragId}>
+                    {meters[r].rcds.map(({ device, report }) => {
+                      const tone = report.status === "insuffisant" ? "over" : report.rating && report.load > report.rating ? "amont" : "ok";
+                      const detail = meters[r].sum.lines.map((l) => `${l.label} C${l.rating} × ${l.count} = ${l.rawSum} A (charge ${Math.round(l.load)} A)`).join(NL);
+                      return (
+                        <button
+                          key={device.id}
+                          type="button"
+                          className="meter-chip"
+                          data-tone={tone}
+                          onClick={() => onSelect?.(device.id)}
+                          title={`${reperes.get(device.id) ?? "ID"} : charge calculée ${Math.round(report.load)} A pour ${report.rating ?? "?"} A (somme brute ${report.rawSum} A, ${report.circuits} circuits sur 8)${tone === "amont" ? " — conforme car le différentiel est au moins égal au disjoncteur de branchement" : ""}${NL}${NL}${detail}`}
+                        >
+                          <b>
+                            {Math.round(report.load)}/{report.rating ?? "?"} A
+                          </b>
+                          <span data-over={report.circuits > 8}>{report.circuits}/8</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             );
           })}

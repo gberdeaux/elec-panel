@@ -3023,3 +3023,58 @@ button.blanking:focus-visible .blanking-cta {
 .row-total-lines li > :nth-child(n + 2) {
   text-align: right;
 }
+
+/* ---------- Compteur de charge par rangée ---------- */
+.row-meter {
+  position: absolute;
+  right: 0;
+  top: calc(var(--nose-top) + var(--nose-h) + 7px);
+  display: flex;
+  gap: 6px;
+  z-index: 5;
+}
+.coffret--open .row-meter {
+  top: calc(var(--row-top) - 30px);
+}
+.meter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 5px 3px 9px;
+  border-radius: 999px;
+  border: 1.5px solid #9fd8b8;
+  background: #effaf3;
+  color: #0b6b3c;
+  font-family: var(--mono);
+  font-size: 12px;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.12);
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.meter-chip b {
+  font-weight: 800;
+}
+.meter-chip span {
+  font-size: 10.5px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.7);
+  color: inherit;
+}
+.meter-chip span[data-over="true"] {
+  background: #d0291d;
+  color: #fff;
+}
+.meter-chip[data-tone="amont"] {
+  border-color: #f0c96a;
+  background: #fff7e0;
+  color: #8a5a00;
+}
+.meter-chip[data-tone="over"] {
+  border-color: #d0291d;
+  background: #d0291d;
+  color: #fff;
+}
+.row-meter[data-dragging="true"] .meter-chip {
+  box-shadow: 0 0 0 3px rgb(255 194 26 / 0.45);
+}

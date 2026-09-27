@@ -1,5 +1,5 @@
 import { type ReactNode, useEffect, useMemo, useState } from "react";
-import { rowSummaries, verdict } from "../domain/analysis";
+import { verdict } from "../domain/analysis";
 import { type CatalogItem, DEVICE_BRANDS, catalogById, deviceFromCatalog, findCatalogItem } from "../domain/catalog";
 import { autoFix, quickFixFor } from "../domain/fixes";
 import { deviceTitle, findDevice, freeModules, isCircuitDevice, locatedDevices, panelCapacity, repereMap, rowModules } from "../domain/panel";
@@ -285,7 +285,6 @@ export function PanelView({ onAsk, onNavigate }: { onAsk: (q: string) => void; o
             </span>
           </div>
         </section>
-          {devices.length > 0 && <RowTotals panel={panel} onSelect={select} />}
         </div>
 
         <aside className="card side-panel" aria-label="Détails">
@@ -575,68 +574,5 @@ function GenerateDialog({ panel, onClose }: { panel: Panel; onClose: () => void 
       </div>
       {replace && <p className="muted small">Les retouches faites à la main sur ce tableau seront remplacées (annulable avec Ctrl+Z).</p>}
     </Modal>
-  );
-}
-
-/** Totaux par rangée : somme des calibres et charge calculée, détaillées par type de circuit. */
-function RowTotals({ panel, onSelect }: { panel: Panel; onSelect: (id?: string) => void }) {
-  const house = useStore((s) => s.project.house);
-  const summaries = useMemo(() => rowSummaries(panel, house), [panel, house]);
-  return (
-    <section className="card">
-      <div className="card-head">
-        <div>
-          <h2>Répartition par rangée</h2>
-          <p className="sub">Somme des calibres et charge retenue par la norme (chauffage et chauffe-eau à 100 %, autres circuits à 50 %), pour équilibrer les différentiels.</p>
-        </div>
-      </div>
-      <div className="row-totals">
-        {summaries.map((s) => (
-          <div key={s.row} className="row-total">
-            <div className="row-total-head">
-              <span className="row-total-index">Rangée {s.row + 1}</span>
-              {s.rcds.length ? (
-                s.rcds.map(({ device, report }) => (
-                  <button key={device.id} type="button" className="row-total-rcd" data-status={report.status} onClick={() => onSelect(device.id)}>
-                    ID {device.rating ?? "?"} A {device.rcdType ?? "AC"}
-                    <span>{report.status === "insuffisant" ? "insuffisant" : "OK"}</span>
-                  </button>
-                ))
-              ) : (
-                <span className="muted small">sans différentiel</span>
-              )}
-              <span className="spacer" />
-              <span className="small muted">
-                <b className="mono" style={{ color: "var(--text)" }}>{s.circuits}</b> circuit{s.circuits > 1 ? "s" : ""}
-              </span>
-              <span className="small muted">
-                Somme <b className="mono" style={{ color: "var(--text)" }}>{s.rawSum} A</b>
-              </span>
-              <span className="small muted">
-                Charge <b className="mono" style={{ color: "var(--text)" }}>{Math.round(s.load)} A</b>
-              </span>
-            </div>
-            {s.lines.length > 0 ? (
-              <ul className="row-total-lines">
-                {s.lines.map((l) => (
-                  <li key={`${l.label}-${l.rating}`}>
-                    <span>{l.label}</span>
-                    <span className="mono">
-                      C{l.rating} × {l.count}
-                    </span>
-                    <b className="mono">{l.rawSum} A</b>
-                    <span className="mono muted">charge {Math.round(l.load)} A</span>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="muted small" style={{ padding: "0 0 4px" }}>
-                Aucun départ.
-              </p>
-            )}
-          </div>
-        ))}
-      </div>
-    </section>
   );
 }
