@@ -99,7 +99,11 @@ export function PanelVisual({ panel, findings, mode, selectedId, readOnly, maxSc
     const summaries = rowSummaries(meterPanel, house);
     return summaries.map((sum) => ({
       sum,
-      rcds: meterPanel.rows[sum.row].filter((d) => d.kind === "rcd").map((d) => ({ device: d, report: rcdLoadReport(meterPanel, d, house) })),
+      rcds: meterPanel.rows[sum.row].flatMap((d, i, row) =>
+        d.kind === "rcd"
+          ? [{ device: d, report: rcdLoadReport(meterPanel, d, house), offset: row.slice(0, i).reduce((m, x) => m + x.modules, 0) }]
+          : [],
+      ),
     }));
   }, [meterPanel, house]);
 
@@ -269,7 +273,7 @@ export function PanelVisual({ panel, findings, mode, selectedId, readOnly, maxSc
                 </span>
                 {meters[r] && meters[r].rcds.length > 0 && (
                   <div className="row-meter" data-dragging={!!dragId}>
-                    {meters[r].rcds.map(({ device, report }) => {
+                    {meters[r].rcds.map(({ device, report, offset }) => {
                       const tone = report.status === "insuffisant" ? "over" : report.rating && report.load > report.rating ? "amont" : "ok";
                       const detail = meters[r].sum.lines.map((l) => `${l.label} C${l.rating} × ${l.count} = ${l.rawSum} A (charge ${Math.round(l.load)} A)`).join(NL);
                       return (
@@ -278,11 +282,12 @@ export function PanelVisual({ panel, findings, mode, selectedId, readOnly, maxSc
                           type="button"
                           className="meter-chip"
                           data-tone={tone}
+                          style={{ left: offset * mod + (device.modules * mod) / 2 }}
                           onClick={() => onSelect?.(device.id)}
                           title={`${reperes.get(device.id) ?? "ID"} : charge calculée ${Math.round(report.load)} A pour ${report.rating ?? "?"} A (somme brute ${report.rawSum} A, ${report.circuits} circuits sur 8)${tone === "amont" ? " — conforme car le différentiel est au moins égal au disjoncteur de branchement" : ""}${NL}${NL}${detail}`}
                         >
                           <b>
-                            {Math.round(report.load)}/{report.rating ?? "?"} A
+                            {Math.round(report.load)}/{report.rating ?? "?"}A
                           </b>
                           <span data-over={report.circuits > 8}>{report.circuits}/8</span>
                         </button>
