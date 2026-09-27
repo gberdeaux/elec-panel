@@ -362,6 +362,12 @@ const PICTOS: Record<string, ReactNode> = {
       <path d="M6 1.5v9M4 3.5 6 1.5l2 2M4 8.5l2 2 2-2" />
     </>
   ),
+  tableau_secondaire: (
+    <>
+      <rect x="1.5" y="2" width="9" height="8" rx="1" />
+      <path d="M3.5 4.5h5M3.5 7.5h5M5 4.5v3" />
+    </>
+  ),
   chaudiere: (
     <>
       <rect x="2.5" y="1.5" width="7" height="9" rx="1" />
@@ -436,6 +442,7 @@ export const PICTO_CHOICES: { key: string; label: string }[] = [
   { key: "irve_borne", label: "Borne VE" },
   { key: "pac_clim", label: "PAC / clim" },
   { key: "chaudiere", label: "Chaudière" },
+  { key: "tableau_secondaire", label: "Tableau secondaire" },
   { key: "poele", label: "Poêle" },
   { key: "eau", label: "Eau / adoucisseur" },
   { key: "sdb", label: "Salle de bain" },

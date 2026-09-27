@@ -46,6 +46,7 @@ export type CircuitUsage =
   | "adoucisseur"
   | "exterieur"
   | "informatique"
+  | "tableau_secondaire"
   | "autre";
 
 export interface Circuit {

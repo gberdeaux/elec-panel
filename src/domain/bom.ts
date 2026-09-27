@@ -135,10 +135,11 @@ function computeBomDetailed(project: Project, target: Panel, source?: Panel): { 
       note: "Un peigne par rangée, recoupé à la longueur utile.",
     });
   }
-  const freeTotal = Array.from({ length: enc.rows }, (_, i) => Math.max(0, enc.modulesPerRow - rowModules(target.rows[i] ?? []))).reduce(
-    (a, b) => a + b,
-    0,
-  );
+  const blankModules = (row: Device[]) => row.filter((d) => d.kind === "blank").reduce((m, d) => m + d.modules, 0);
+  const freeTotal = Array.from(
+    { length: enc.rows },
+    (_, i) => Math.max(0, enc.modulesPerRow - rowModules(target.rows[i] ?? [])) + blankModules(target.rows[i] ?? []),
+  ).reduce((a, b) => a + b, 0);
   if (freeTotal > 0) {
     const blank = findCatalogItem(enc.brand, { kind: "blankStrip" }, custom);
     addLine(`blank|${enc.brand}`, "blankStrip", blank?.label ?? "Obturateur sécable 5 modules", Math.ceil(freeTotal / 5), {

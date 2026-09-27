@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { produce } from "immer";
 import { type CatalogItem, syncCatalog } from "../domain/catalog";
 import { type GenerateOptions, generateCompliantPanel, rebrandPanel } from "../domain/generator";
-import { findDevice, newId } from "../domain/panel";
+import { findDevice, newId, rowModules } from "../domain/panel";
 import { emptyPanel, sampleProject } from "../domain/sample";
 import { type Brand, type ChatTurn, DEFAULT_LABEL_SETTINGS, type Device, type Enclosure, type House, type InventoryEntry, type LabelSettings, type Panel, type PanelRole, type Project } from "../domain/types";
 
@@ -36,12 +36,13 @@ interface State {
   generate(sourceId: string, opts: GenerateOptions, replaceId?: string): void;
   createPanelFrom(panel: Panel): void;
 
-  addDevice(panelId: string, row: number, device: Omit<Device, "id">, index?: number): string;
+  /** `atModule` : position libre en fin de rangée ; l'espace laissé avant est comblé par un obturateur. */
+  addDevice(panelId: string, row: number, device: Omit<Device, "id">, index?: number, atModule?: number): string;
   /** Remplace un tableau entier (corrections automatiques). */
   replacePanel(panel: Panel): void;
   updateDevice(panelId: string, deviceId: string, patch: Partial<Device>): void;
   removeDevice(panelId: string, deviceId: string): void;
-  moveDevice(panelId: string, deviceId: string, toRow: number, toIndex: number): void;
+  moveDevice(panelId: string, deviceId: string, toRow: number, toIndex: number, atModule?: number): void;
   duplicateDevice(panelId: string, deviceId: string): void;
 
   setInventory(key: string, patch: Partial<InventoryEntry> | null): void;
@@ -54,6 +55,16 @@ interface State {
 }
 
 const HISTORY_LIMIT = 60;
+
+/** Laisse un espace (obturateur) jusqu'au module `atModule` de la rangée, pour écarter un appareil des autres. */
+function padRow(row: Device[], atModule: number, modulesPerRow: number, width: number) {
+  // L'appareil doit tenir dans la rangée : on ne laisse pas d'écart qui le ferait déborder.
+  const gap = Math.min(atModule, modulesPerRow - width) - rowModules(row);
+  if (gap <= 0) return;
+  const last = row[row.length - 1];
+  if (last?.kind === "blank") last.modules += gap;
+  else row.push({ id: newId(), kind: "blank", modules: gap, condition: "bon" });
+}
 
 export const useStore = create<State>((set, get) => {
   /** Applique une modification au projet en gardant l'historique. */
@@ -213,7 +224,7 @@ export const useStore = create<State>((set, get) => {
       set({ view: "panel", selectedDeviceId: undefined });
     },
 
-    addDevice: (panelId, row, device, index) => {
+    addDevice: (panelId, row, device, index, atModule) => {
       const id = newId();
       commit((d) => {
         const p = panelOf(d, panelId);
@@ -221,7 +232,10 @@ export const useStore = create<State>((set, get) => {
         while (p.rows.length <= row) p.rows.push([]);
         p.enclosure.rows = Math.max(p.enclosure.rows, p.rows.length);
         const target = p.rows[row];
-        target.splice(index ?? target.length, 0, { ...device, id } as Device);
+        if (atModule !== undefined) {
+          padRow(target as Device[], atModule, p.enclosure.modulesPerRow, device.modules);
+          target.push({ ...device, id } as Device);
+        } else target.splice(index ?? target.length, 0, { ...device, id } as Device);
       });
       set({ selectedDeviceId: id });
       return id;
@@ -255,7 +269,7 @@ export const useStore = create<State>((set, get) => {
       });
       if (get().selectedDeviceId === deviceId) set({ selectedDeviceId: undefined });
     },
-    moveDevice: (panelId, deviceId, toRow, toIndex) =>
+    moveDevice: (panelId, deviceId, toRow, toIndex, atModule) =>
       commit((d) => {
         const p = panelOf(d, panelId);
         if (!p) return;
@@ -264,6 +278,11 @@ export const useStore = create<State>((set, get) => {
         const [dev] = p.rows[loc.row].splice(loc.index, 1);
         while (p.rows.length <= toRow) p.rows.push([]);
         p.enclosure.rows = Math.max(p.enclosure.rows, p.rows.length);
+        if (atModule !== undefined) {
+          padRow(p.rows[toRow] as Device[], atModule, p.enclosure.modulesPerRow, dev.modules);
+          p.rows[toRow].push(dev);
+          return;
+        }
         const adjusted = loc.row === toRow && toIndex > loc.index ? toIndex - 1 : toIndex;
         p.rows[toRow].splice(Math.max(0, Math.min(adjusted, p.rows[toRow].length)), 0, dev);
       }),

@@ -170,7 +170,19 @@ export function analyzePanel(panel: Panel, house: House): Finding[] {
   // ---------- Départs ----------
   for (const d of circuits) {
     const guard = protection.get(d.id) ?? null;
-    if (!guard || !isHighSensitivity(guard)) {
+    const feedsSubPanel = !!d.circuit && !!USAGES[d.circuit.usage].ownRcd;
+    if (feedsSubPanel && (!guard || !isHighSensitivity(guard))) {
+      add({
+        ruleId: "tableau-secondaire",
+        severity: "conseil",
+        title: `${label(d)} : hors différentiel 30 mA, à condition que…`,
+        detail: "Ce départ alimente un tableau secondaire. Il peut rester hors différentiel 30 mA si ce tableau protège tous ses circuits par ses propres interrupteurs différentiels 30 mA.",
+        norm: USAGES[d.circuit!.usage].normText,
+        normRef: USAGES[d.circuit!.usage].normRef,
+        fix: "Vérifier que le tableau secondaire a au moins un interrupteur différentiel 30 mA en tête de chaque rangée, et une barrette de terre reliée à celle du tableau principal.",
+        deviceIds: [d.id],
+      });
+    } else if (!guard || !isHighSensitivity(guard)) {
       add({
         ruleId: "sans-30ma",
         severity: "danger",

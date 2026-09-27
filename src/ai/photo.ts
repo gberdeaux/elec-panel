@@ -30,7 +30,7 @@ export interface PhotoResult {
 const ICONS = [
   "eclairage", "prises", "prises_cuisine", "volets", "chauffage", "chauffe_eau", "plaque", "four", "lave_linge", "seche_linge",
   "lave_vaisselle", "congelateur", "refrigerateur", "micro_ondes", "vmc", "irve_prise", "irve_borne", "pac_clim", "chaudiere", "poele", "eau", "sdb",
-  "tv", "informatique", "garage", "portail", "exterieur", "piscine", "alarme", "teleruptor", "contactor", "rcd", "spd", "autre",
+  "tv", "informatique", "garage", "portail", "exterieur", "piscine", "alarme", "teleruptor", "contactor", "rcd", "spd", "tableau_secondaire", "autre",
 ] as const;
 
 export const PHOTO_PROMPT = `Voici la photo d'un tableau électrique domestique français (monophasé). Relève chaque rangée de gauche à droite, appareil par appareil, en t'aidant du porte-étiquette situé au-dessus de chaque rangée : chaque case d'étiquette est alignée sur l'appareil qu'elle décrit.

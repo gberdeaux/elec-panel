@@ -91,7 +91,7 @@ export function PanelView({ onAsk, onNavigate }: { onAsk: (q: string) => void; o
   const undescribed = locatedDevices(panel).filter(({ device }) => isCircuitDevice(device) && !device.circuit);
 
   /** Insère un article là où il y a de la place : rangée de l'appareil sélectionné, sinon première rangée libre. */
-  const insert = (item: CatalogItem, row?: number, index?: number) => {
+  const insert = (item: CatalogItem, row?: number, index?: number, atModule?: number) => {
     const modules = item.modules ?? 1;
     let target = row;
     if (target === undefined) {
@@ -101,7 +101,7 @@ export function PanelView({ onAsk, onNavigate }: { onAsk: (q: string) => void; o
       if (target < 0) target = panel.rows.length;
     }
     const at = index ?? (selectedId && findDevice(panel, selectedId)?.row === target ? findDevice(panel, selectedId)!.index + 1 : undefined);
-    addDevice(panel.id, target, deviceFromCatalog(item), at);
+    addDevice(panel.id, target, deviceFromCatalog(item), at, atModule);
   };
 
   const setEnclosure = (brand: Brand, rows: number, modulesPerRow: number) => {
@@ -245,10 +245,10 @@ export function PanelView({ onAsk, onNavigate }: { onAsk: (q: string) => void; o
             mode={mode}
             onSelect={select}
             onAdd={(row) => setAddingRow(row)}
-            onMove={(id, row, index) => moveDevice(panel.id, id, row, index)}
-            onInsert={(catalogId, row, index) => {
+            onMove={(id, row, index, atModule) => moveDevice(panel.id, id, row, index, atModule)}
+            onInsert={(catalogId, row, index, atModule) => {
               const item = catalogById(catalogId, custom);
-              if (item) insert(item, row, index);
+              if (item) insert(item, row, index, atModule);
             }}
           />
 

@@ -33,8 +33,9 @@ interface Props {
   maxScale?: number;
   onSelect?(id?: string): void;
   onAdd?(row: number): void;
-  onMove?(id: string, row: number, index: number): void;
-  onInsert?(catalogId: string, row: number, index: number): void;
+  /** `atModule` : dépôt dans l'espace libre, à ce module de la rangée (un obturateur comble l'écart). */
+  onMove?(id: string, row: number, index: number, atModule?: number): void;
+  onInsert?(catalogId: string, row: number, index: number, atModule?: number): void;
 }
 
 export const GROUP_COLORS = ["#2f6df6", "#0e9f9f", "#9b51e0", "#e0891a", "#3f9b3a", "#d6457f"];
@@ -81,7 +82,7 @@ export function PanelVisual({ panel, findings, mode, selectedId, readOnly, maxSc
   const labels = useStore((st) => st.project.labelSettings) ?? DEFAULT_LABEL_SETTINGS;
   const house = useStore((st) => st.project.house);
   const [dragId, setDragId] = useState<string>();
-  const [drop, setDrop] = useState<{ row: number; index: number }>();
+  const [drop, setDrop] = useState<{ row: number; index: number; gap?: number }>();
 
   // Compteurs de charge : pendant un glisser-déposer, on simule le déplacement pour les mettre à jour en direct.
   const meterPanel = useMemo(() => {
@@ -136,8 +137,10 @@ export function PanelVisual({ panel, findings, mode, selectedId, readOnly, maxSc
     const catalogId = e.dataTransfer.getData(DRAG_CATALOG);
     const id = dragId ?? e.dataTransfer.getData(DRAG_DEVICE);
     if (drop) {
-      if (catalogId) onInsert?.(catalogId, drop.row, drop.index);
-      else if (id) onMove?.(id, drop.row, drop.index);
+      // Position visée dans l'espace libre : la fin actuelle de la rangée plus l'écart pointé.
+      const atModule = drop.gap ? rowModules(panel.rows[drop.row] ?? []) + drop.gap : undefined;
+      if (catalogId) onInsert?.(catalogId, drop.row, drop.index, atModule);
+      else if (id) onMove?.(id, drop.row, drop.index, atModule);
     }
     endDrag();
   };
@@ -145,7 +148,7 @@ export function PanelVisual({ panel, findings, mode, selectedId, readOnly, maxSc
 
   const renderDevice = (d: Device, r: number, i: number) => {
     const guard = guards.get(d.id);
-    const unprotected = isCircuitDevice(d) && (!guard || !isHighSensitivity(guard));
+    const unprotected = isCircuitDevice(d) && !(d.circuit && USAGES[d.circuit.usage].ownRcd) && (!guard || !isHighSensitivity(guard));
     const own = findingsForDevice(findings, d.id).filter((f) => f.severity !== "conseil");
     const sev = worstSeverity(own);
     const marker = drop && drop.row === r && drop.index === i && dragId !== d.id;
@@ -242,7 +245,7 @@ export function PanelVisual({ panel, findings, mode, selectedId, readOnly, maxSc
                   {mode === "open" && <span className="din-rail" aria-hidden="true" />}
                   {mode === "open" && <Comb row={row} guards={guards} mod={mod} scale={scale} />}
                   {row.map((d, i) => renderDevice(d, r, i))}
-                  {drop && drop.row === r && drop.index === row.length && <span className="drop-marker drop-marker--end" />}
+                  {drop && drop.row === r && drop.index === row.length && !drop.gap && <span className="drop-marker drop-marker--end" />}
                   {free > 0 &&
                     (readOnly ? (
                       <span className="blanking" style={{ width: free * mod, ["--seam" as string]: seam }} />
@@ -256,10 +259,18 @@ export function PanelVisual({ panel, findings, mode, selectedId, readOnly, maxSc
                         onDragOver={(e) => {
                           if (!acceptsDrop(e)) return;
                           e.preventDefault();
-                          setDrop({ row: r, index: row.length });
+                          // Dépôt à l'endroit pointé : on peut écarter un départ des autres (alimentation d'un tableau secondaire…).
+                          const moving = dragId ? findDevice(panel, dragId) : undefined;
+                          const width = moving?.device.modules ?? 1;
+                          const slot = Math.floor((e.clientX - e.currentTarget.getBoundingClientRect().left) / mod);
+                          const gap = Math.max(0, Math.min(slot, free - width));
+                          if (drop?.row !== r || drop.index !== row.length || drop.gap !== gap) setDrop({ row: r, index: row.length, gap });
                         }}
                         onDrop={handleDrop}
                       >
+                        {drop && drop.row === r && drop.index === row.length && !!drop.gap && (
+                          <span className="drop-marker" style={{ left: drop.gap * mod - 2 }} />
+                        )}
                         <span className="blanking-cta">
                           <IconPlus size={14} />
                           {free >= 3 && <span>{free} libres</span>}

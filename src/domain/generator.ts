@@ -297,7 +297,9 @@ export function generateCompliantPanel(
   planned = addMissingCircuits(planned, house, notes);
 
   const ev = planned.filter((p) => p.circuit.usage === "irve_prise" || p.circuit.usage === "irve_borne");
-  const regular = planned.filter((p) => !ev.includes(p));
+  // Alimentation d'un tableau secondaire : en tête, hors différentiel 30 mA (le tableau alimenté a les siens).
+  const feeders = planned.filter((p) => USAGES[p.circuit.usage].ownRcd);
+  const regular = planned.filter((p) => !ev.includes(p) && !feeders.includes(p));
   const groups = distribute(regular);
 
   const { brand, modulesPerRow } = opts;
@@ -385,6 +387,23 @@ export function generateCompliantPanel(
     if (p.circuit.usage === "irve_borne") {
       notes.push("Borne de recharge : vérifier que la borne intègre la détection de courant continu 6 mA (sinon différentiel type B).");
     }
+  }
+
+  for (const p of feeders) {
+    const item = pick(brand, { kind: "mcb", rating: p.rating, curve: "C" }, custom);
+    extras.push(
+      deviceFrom(item, {
+        kind: "mcb",
+        modules: p.rating >= 40 ? 2 : 1,
+        rating: p.rating,
+        curve: "C",
+        poles: "1P+N",
+        breakingCapacity: 3000,
+        label: p.label ?? USAGES[p.circuit.usage].label,
+        circuit: p.circuit,
+      }),
+    );
+    notes.push(`« ${p.label ?? USAGES[p.circuit.usage].label} » reste hors différentiel 30 mA : le tableau secondaire doit avoir ses propres différentiels 30 mA.`);
   }
 
   // Parafoudre en tête de la première rangée ; les autres appareils là où il reste de la place.

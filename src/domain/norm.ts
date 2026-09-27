@@ -77,6 +77,11 @@ export interface UsageSpec {
   heavy?: boolean;
   /** Le calibre dépend de la puissance saisie. */
   powerBased?: boolean;
+  /**
+   * Peut rester hors différentiel 30 mA : c'est le tableau alimenté qui protège ses circuits
+   * par ses propres différentiels 30 mA (alimentation d'un tableau divisionnaire).
+   */
+  ownRcd?: boolean;
   normRef: string;
   normText: string;
 }
@@ -416,6 +421,29 @@ export const USAGES: Record<CircuitUsage, UsageSpec> = {
     normText:
       "Circuit prises dédié aux équipements sensibles : règles des circuits prises ; un différentiel haute immunité (A-SI / Hpi) est conseillé.",
   },
+  tableau_secondaire: {
+    label: "Alimentation tableau secondaire",
+    group: "autre",
+    pointsLabel: "tableaux alimentés",
+    defaultRating: 32,
+    defaultSection: 10,
+    defaultPoints: 1,
+    allowed: [
+      { rating: 20, section: 2.5 },
+      { rating: 25, section: 4 },
+      { rating: 32, section: 6 },
+      { rating: 32, section: 10 },
+      { rating: 40, section: 10 },
+      { rating: 63, section: 16 },
+    ],
+    dedicated: true,
+    fullLoad: true,
+    heavy: true,
+    ownRcd: true,
+    normRef: "NF C 15-100-10 · tableaux divisionnaires",
+    normText:
+      "La liaison vers un tableau divisionnaire (garage, dépendance) peut partir en tête de tableau, hors différentiel 30 mA, si le tableau alimenté protège tous ses circuits par ses propres interrupteurs différentiels 30 mA. La liaison reste protégée par le différentiel du disjoncteur de branchement et par un disjoncteur adapté à sa section (32 A en 6 mm², 10 mm² au-delà d'une vingtaine de mètres pour limiter la chute de tension).",
+  },
   autre: {
     label: "Autre usage",
     group: "autre",
@@ -451,6 +479,7 @@ export const USAGE_ORDER: CircuitUsage[] = [
   "adoucisseur",
   "exterieur",
   "informatique",
+  "tableau_secondaire",
   "autre",
 ];
 
