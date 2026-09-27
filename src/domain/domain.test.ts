@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { analyzePanel, rcdLoad, rcdLoadReport, rowSummaries, suitableRcdRating, surgeProtection, verdict } from "./analysis";
-import { bomTotals, computeBom, isReusable } from "./bom";
+import { bomTotals, computeBom, isReusable, leftoversFrom } from "./bom";
 import { generateCompliantPanel, planCircuit } from "./generator";
 import { expectedProtection, maxPointsFor, maxRatingForSection, recommendedRating } from "./norm";
 import { circuitsByRcd, newId, protectionMap } from "./panel";
@@ -183,6 +183,32 @@ describe("génération du tableau conforme", () => {
     expect(rcbo?.rcdType).toBe("A");
     const bad = analyzePanel(generated, house).filter((f) => f.severity === "nonconforme" || f.severity === "danger");
     expect(bad).toEqual([]);
+  });
+});
+
+describe("matériel non réemployé", () => {
+  it("liste chaque appareil de l'ancien tableau non repris, avec sa raison", () => {
+    const project = sampleProject();
+    const source = project.panels[0];
+    const { panel } = generateCompliantPanel(source, project.house, { brand: "Legrand", modulesPerRow: 13 });
+    const lines = computeBom(project, panel, source);
+    const left = leftoversFrom(project, panel, source);
+    const reused = bomTotals(lines).reused;
+    const sourceDevices = source.rows.flat().length;
+    expect(left.filter((l) => l.device).length).toBe(sourceDevices - reused);
+    expect(left.find((l) => l.device?.kind === "fuse")?.reason).toBe("nonconforme");
+    expect(left.every((l) => l.detail.length > 0)).toBe(true);
+    expect(left.find((l) => l.device?.poles === "1P")?.detail).toMatch(/neutre/);
+    expect(left.some((l) => !l.device && /Coffret/.test(l.label))).toBe(true);
+  });
+
+  it("signale les appareils d'une autre marque quand le réemploi entre marques est désactivé", () => {
+    const project = sampleProject();
+    const source = project.panels[0];
+    const { panel } = generateCompliantPanel(source, project.house, { brand: "Schneider", modulesPerRow: 13 });
+    const left = leftoversFrom(project, panel, source);
+    expect(left.some((l) => l.reason === "autre-marque")).toBe(true);
+    expect(leftoversFrom({ ...project, allowCrossBrandReuse: true }, panel, source).some((l) => l.reason === "autre-marque")).toBe(false);
   });
 });
 

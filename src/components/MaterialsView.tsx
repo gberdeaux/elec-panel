@@ -1,25 +1,29 @@
 import { useMemo, useState } from "react";
-import { type BomLine, bomToCsv, bomToText, bomTotals, computeBom } from "../domain/bom";
+import { type BomLine, type Leftover, bomToCsv, bomToText, bomTotals, computeBom, leftoversFrom } from "../domain/bom";
 import { KIND_LABEL, catalogById, leroyMerlinSearchUrl } from "../domain/catalog";
 import { exportFile } from "../store/persistence";
 import { useStore } from "../store/store";
+import { repereMap } from "../domain/panel";
 import { CatalogArt } from "./CatalogPicker";
+import { DeviceArt } from "./DeviceArt";
 import { IconBox, IconCopy, IconDownload, IconExternal, IconPlus, IconUndo } from "./icons";
 import { Field, NumberInput, Switch, euro, toast } from "./ui";
+
+function EnclosureThumb() {
+  return (
+    <svg width="40" height="44" viewBox="0 0 40 44" aria-hidden="true">
+      <rect x="1" y="1" width="38" height="42" rx="5" fill="#f7f7f3" stroke="#c9cbc4" />
+      <rect x="5" y="7" width="30" height="7" rx="1" fill="#1d2024" />
+      <rect x="5" y="18" width="30" height="7" rx="1" fill="#1d2024" />
+      <rect x="5" y="29" width="30" height="7" rx="1" fill="#e6e6e0" />
+    </svg>
+  );
+}
 
 function Thumb({ line }: { line: BomLine }) {
   const custom = useStore((s) => s.project.customCatalog);
   const item = catalogById(line.catalogId, custom);
-  if (line.kind === "enclosure") {
-    return (
-      <svg width="40" height="44" viewBox="0 0 40 44" aria-hidden="true">
-        <rect x="1" y="1" width="38" height="42" rx="5" fill="#f7f7f3" stroke="#c9cbc4" />
-        <rect x="5" y="7" width="30" height="7" rx="1" fill="#1d2024" />
-        <rect x="5" y="18" width="30" height="7" rx="1" fill="#1d2024" />
-        <rect x="5" y="29" width="30" height="7" rx="1" fill="#e6e6e0" />
-      </svg>
-    );
-  }
+  if (line.kind === "enclosure") return <EnclosureThumb />;
   if (line.kind === "comb") {
     return (
       <svg width="46" height="20" viewBox="0 0 46 20" aria-hidden="true">
@@ -32,6 +36,75 @@ function Thumb({ line }: { line: BomLine }) {
   }
   if (item) return <CatalogArt item={item} scale={0.95} />;
   return <IconBox />;
+}
+
+const LEFTOVER_TONE: Record<Leftover["reason"], { tone: string; label: string }> = {
+  hs: { tone: "danger", label: "Hors service" },
+  use: { tone: "avertissement", label: "Usé" },
+  nonconforme: { tone: "nonconforme", label: "Non conforme" },
+  "autre-marque": { tone: "conseil", label: "Autre marque" },
+  remplace: { tone: "brand", label: "Remplacé" },
+  surplus: { tone: "brand", label: "En surplus" },
+  inutile: { tone: "brand", label: "Plus utile" },
+  obturateur: { tone: "conseil", label: "Sans usage" },
+};
+
+/** Matériel de l'ancien tableau que le nouveau ne reprend pas. */
+function Leftovers({ items, reperes }: { items: Leftover[]; reperes: Map<string, string> }) {
+  const recyclable = items.filter((l) => l.device && ["remplace", "surplus", "inutile", "autre-marque"].includes(l.reason)).length;
+  return (
+    <section className="card">
+      <div className="card-head">
+        <div>
+          <h2>Matériel de l'ancien tableau non réutilisé</h2>
+          <p className="muted small">
+            {items.length === 0
+              ? "Tout le matériel de l'ancien tableau est repris dans le nouveau."
+              : `${items.length} élément${items.length > 1 ? "s" : ""} retiré${items.length > 1 ? "s" : ""}${recyclable ? `, dont ${recyclable} en bon état à garder en dépannage ou à revendre` : ""}.`}
+          </p>
+        </div>
+      </div>
+      {items.length > 0 && (
+        <div className="table-wrap">
+          <table className="data">
+            <thead>
+              <tr>
+                <th>Appareil</th>
+                <th>Repère</th>
+                <th>Rangée</th>
+                <th>Raison</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((l, i) => {
+                const tone = LEFTOVER_TONE[l.reason];
+                return (
+                  <tr key={l.device?.id ?? `enc-${i}`}>
+                    <td>
+                      <div className="product">
+                        <span className="product-thumb">{l.device ? <DeviceArt device={l.device} view="front" scale={l.device.modules > 2 ? 0.66 : 0.95} /> : <EnclosureThumb />}</span>
+                        <b>{l.label}</b>
+                      </div>
+                    </td>
+                    <td className="mono">{l.device ? reperes.get(l.device.id) ?? "—" : "—"}</td>
+                    <td>{l.row === undefined ? "—" : `Rangée ${l.row + 1}`}</td>
+                    <td>
+                      <span className="badge" data-tone={tone.tone}>
+                        {tone.label}
+                      </span>
+                      <div className="muted xsmall" style={{ marginTop: 4 }}>
+                        {l.detail}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
 }
 
 export function MaterialsView() {
@@ -47,6 +120,8 @@ export function MaterialsView() {
   const source = project.panels.find((p) => p.id === project.sourcePanelId && p.role === "existing") ?? sources[0];
 
   const lines = useMemo(() => (target ? computeBom(project, target, source) : []), [project, target, source]);
+  const leftovers = useMemo(() => (target && source ? leftoversFrom(project, target, source) : []), [project, target, source]);
+  const reperes = useMemo(() => (source ? repereMap(source) : new Map<string, string>()), [source]);
   const totals = bomTotals(lines);
   const [filter, setFilter] = useState<"all" | "buy" | "stock">("all");
   const toBuyLines = lines.filter((l) => l.toBuy > 0);
@@ -299,6 +374,7 @@ export function MaterialsView() {
             </table>
           </div>
         </section>
+        {source && <Leftovers items={leftovers} reperes={reperes} />}
         <p className="muted xsmall">
           Prix indicatifs, modifiables : ils varient selon les magasins et les promotions. Pensez aussi aux fournitures hors tableau : fils de liaison 10 mm²,
           câbles des circuits à recâbler, étiquettes.

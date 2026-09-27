@@ -51,6 +51,10 @@ function deviceLabel(d: Device, item?: CatalogItem): string {
 }
 
 export function computeBom(project: Project, target: Panel, source?: Panel): BomLine[] {
+  return computeBomDetailed(project, target, source).lines;
+}
+
+function computeBomDetailed(project: Project, target: Panel, source?: Panel): { lines: BomLine[]; used: Set<string>; enclosureReused: boolean } {
   const custom = project.customCatalog;
   const lines = new Map<string, BomLine>();
   const priceOf = (key: string, catalogId?: string, fallback = 0) =>
@@ -144,6 +148,7 @@ export function computeBom(project: Project, target: Panel, source?: Panel): Bom
         .filter(isReusable)
     : [];
   const used = new Set<string>();
+  let enclosureReused = false;
   for (const line of lines.values()) {
     if (line.kind === "enclosure") {
       if (
@@ -152,6 +157,7 @@ export function computeBom(project: Project, target: Panel, source?: Panel): Bom
         source.enclosure.rows === enc.rows &&
         source.enclosure.modulesPerRow === enc.modulesPerRow
       ) {
+        enclosureReused = true;
         line.autoOwned = 1;
         line.reuse.push("Coffret existant");
       }
@@ -180,9 +186,67 @@ export function computeBom(project: Project, target: Panel, source?: Panel): Bom
   }
 
   const order: CatalogKind[] = ["enclosure", "rcd", "rcbo", "mcb", "spd", "contactor", "teleruptor", "switch", "timer", "socket", "fuse", "other", "comb", "blankStrip"];
-  return [...lines.values()].sort(
+  const sorted = [...lines.values()].sort(
     (a, b) => order.indexOf(a.kind) - order.indexOf(b.kind) || a.label.localeCompare(b.label, "fr", { numeric: true }),
   );
+  return { lines: sorted, used, enclosureReused };
+}
+
+export type LeftoverReason = "hs" | "use" | "nonconforme" | "autre-marque" | "remplace" | "surplus" | "inutile" | "obturateur";
+
+export interface Leftover {
+  device?: Device;
+  row?: number;
+  label: string;
+  reason: LeftoverReason;
+  detail: string;
+}
+
+/** Pourquoi un appareil existant ne peut pas être réemployé tel quel, ou undefined s'il le peut. */
+function unusableReason(d: Device): { reason: LeftoverReason; detail: string } | undefined {
+  if (d.kind === "fuse") return { reason: "nonconforme", detail: "Fusible : remplacé par un disjoncteur" };
+  if ((d.kind === "mcb" || d.kind === "rcbo") && d.poles === "1P") return { reason: "nonconforme", detail: "Pas de coupure du neutre" };
+  if ((d.kind === "mcb" || d.kind === "rcbo") && d.breakingCapacity !== undefined && d.breakingCapacity < MIN_BREAKING_CAPACITY)
+    return { reason: "nonconforme", detail: `Pouvoir de coupure insuffisant (${d.breakingCapacity} A)` };
+  if ((d.kind === "rcd" || d.kind === "rcbo") && (d.sensitivity ?? 30) > 30) return { reason: "nonconforme", detail: `Sensibilité ${d.sensitivity} mA au lieu de 30 mA` };
+  if (d.condition === "HS") return { reason: "hs", detail: "Hors service" };
+  if (d.condition === "usé") return { reason: "use", detail: "Usé ou d'aspect douteux" };
+  if (d.kind === "blank" || d.kind === "other") return { reason: "obturateur", detail: "Obturateur ou appareil non identifié" };
+  return undefined;
+}
+
+/** Matériel de l'ancien tableau qui ne sera pas réemployé dans le nouveau, avec la raison. */
+export function leftoversFrom(project: Project, target: Panel, source: Panel): Leftover[] {
+  const { used, enclosureReused, lines } = computeBomDetailed(project, target, source);
+  const out: Leftover[] = [];
+  if (!enclosureReused) {
+    out.push({
+      label: `Coffret ${source.enclosure.brand} ${source.enclosure.rows} × ${source.enclosure.modulesPerRow} modules`,
+      reason: "remplace",
+      detail: `Remplacé par un coffret ${target.enclosure.brand} ${target.enclosure.rows} × ${target.enclosure.modulesPerRow} modules`,
+    });
+  }
+  for (const { device: d, row } of locatedDevices(source)) {
+    if (used.has(d.id)) continue;
+    const label = `${deviceLabel(d)}${d.label ? ` — ${d.label}` : ""}${d.brand && d.brand !== "Générique" ? ` (${d.brand})` : ""}`;
+    const bad = unusableReason(d);
+    if (bad) {
+      out.push({ device: d, row, label, ...bad });
+      continue;
+    }
+    const spec = specKey(d);
+    const sameSpec = lines.filter((l) => l.key.split("|").slice(0, 6).join("|") === spec);
+    if (sameSpec.length && !project.allowCrossBrandReuse && sameSpec.every((l) => l.brand && d.brand && l.brand !== d.brand && d.brand !== "Générique")) {
+      out.push({ device: d, row, label, reason: "autre-marque", detail: `Autre marque que le nouveau tableau (${sameSpec[0].brand}) : réemploi désactivé` });
+    } else if (sameSpec.length) {
+      out.push({ device: d, row, label, reason: "surplus", detail: "En surplus : le nouveau tableau en utilise moins" });
+    } else if (lines.some((l) => l.kind === d.kind)) {
+      out.push({ device: d, row, label, reason: "remplace", detail: "Remplacé par un modèle plus adapté (calibre, type ou courbe différent)" });
+    } else {
+      out.push({ device: d, row, label, reason: "inutile", detail: "Plus nécessaire dans le nouveau tableau" });
+    }
+  }
+  return out;
 }
 
 export function bomTotals(lines: BomLine[]) {
