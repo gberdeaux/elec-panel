@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { analyzePanel } from "../domain/analysis";
+import { computeBom, leftoversFrom } from "../domain/bom";
 import { generateCompliantPanel } from "../domain/generator";
 import { rowModules } from "../domain/panel";
 import { defaultHouse } from "../domain/sample";
@@ -82,6 +83,24 @@ describe("import d'un tableau depuis une photo", () => {
     const { panel: generated } = generateCompliantPanel(panel, house, { brand: "Legrand", modulesPerRow: 13 });
     const bad = analyzePanel(generated, house).filter((f) => f.severity === "danger" || f.severity === "nonconforme");
     expect(bad.map((f) => f.title)).toEqual([]);
+  });
+
+  it("reprend les télérupteurs derrière leur disjoncteur et réemploie les appareils relevés", () => {
+    const house = defaultHouse();
+    const source = { ...panel, role: "existing" as const };
+    const { panel: generated } = generateCompliantPanel(source, house, { brand: "Schneider", modulesPerRow: 13 });
+    const flat = generated.rows.flat();
+    const tls = flat.filter((d) => d.kind === "teleruptor");
+    expect(tls).toHaveLength(2);
+    for (const tl of tls) expect(flat[flat.indexOf(tl) - 1].label).toBe(tl.label);
+
+    // Les pôles non relevés sur la photo ne doivent pas empêcher le réemploi (1P+N, 2P par défaut).
+    const project = { panels: [source, generated], inventory: {}, catalogOverrides: {}, customCatalog: [], allowCrossBrandReuse: true, house } as never;
+    const reusedC20 = computeBom(project, generated, source).find((l) => l.kind === "mcb" && l.key.startsWith("mcb|20|C"));
+    expect(reusedC20?.autoOwned).toBeGreaterThanOrEqual(5);
+    const left = leftoversFrom(project, generated, source);
+    expect(left.some((l) => l.device?.kind === "teleruptor")).toBe(false);
+    expect(left.some((l) => l.device?.kind === "blank")).toBe(false);
   });
 
   it("ignore les valeurs incohérentes", () => {

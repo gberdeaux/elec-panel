@@ -923,6 +923,60 @@ textarea.input {
   color: var(--faint);
 }
 
+.filter-pills {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.filter-pills button {
+  --dot: var(--faint);
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 12px 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.filter-pills button::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1.5px solid var(--dot);
+}
+.filter-pills button[data-tone="buy"] {
+  --dot: var(--volt-hover);
+}
+.filter-pills button[data-tone="stock"] {
+  --dot: var(--ok);
+}
+.filter-pills button[data-tone="left"] {
+  --dot: var(--nc);
+}
+.filter-pills button:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+.filter-pills button[aria-pressed="true"] {
+  color: var(--text);
+  border-color: var(--dot);
+  background: color-mix(in srgb, var(--dot) 10%, var(--surface));
+}
+.filter-pills button[aria-pressed="true"]::before {
+  background: var(--dot);
+}
+.filter-pills .count {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--faint);
+}
+
 /* ---------- Cartes ---------- */
 .card {
   background: var(--surface);
@@ -1356,6 +1410,20 @@ table.data td {
 }
 table.data tbody tr:hover td {
   background: var(--surface-2);
+}
+table.data tr[data-leftover="true"] td {
+  background: var(--surface-2);
+}
+table.data tr[data-leftover="true"] .product b {
+  color: var(--muted);
+}
+table.data tr.group-row td {
+  padding-top: 14px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--faint);
 }
 table.data tr[data-bought="true"] td {
   opacity: 0.55;

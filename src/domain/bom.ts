@@ -22,8 +22,16 @@ export interface BomLine {
   note?: string;
 }
 
+/** Pôles par défaut quand ils ne sont pas précisés (relevé photo, saisie rapide) : en monophasé, un différentiel est bipolaire et un disjoncteur phase + neutre. */
+function polesOf(d: Pick<Device, "kind" | "poles">): string {
+  if (d.poles) return d.poles;
+  if (d.kind === "rcd") return "2P";
+  if (d.kind === "mcb" || d.kind === "rcbo") return "1P+N";
+  return "";
+}
+
 function specKey(d: Pick<Device, "kind" | "rating" | "curve" | "rcdType" | "sensitivity" | "poles">): string {
-  return [d.kind, d.rating ?? "", d.curve ?? "", d.rcdType ?? "", d.kind === "rcd" || d.kind === "rcbo" ? d.sensitivity ?? 30 : "", d.poles ?? ""].join("|");
+  return [d.kind, d.rating ?? "", d.curve ?? "", d.rcdType ?? "", d.kind === "rcd" || d.kind === "rcbo" ? d.sensitivity ?? 30 : "", polesOf(d)].join("|");
 }
 
 /** Un appareil existant peut être réemployé s'il est en bon état et conforme en lui-même. */
@@ -211,7 +219,7 @@ function unusableReason(d: Device): { reason: LeftoverReason; detail: string } |
   if ((d.kind === "rcd" || d.kind === "rcbo") && (d.sensitivity ?? 30) > 30) return { reason: "nonconforme", detail: `Sensibilité ${d.sensitivity} mA au lieu de 30 mA` };
   if (d.condition === "HS") return { reason: "hs", detail: "Hors service" };
   if (d.condition === "usé") return { reason: "use", detail: "Usé ou d'aspect douteux" };
-  if (d.kind === "blank" || d.kind === "other") return { reason: "obturateur", detail: "Obturateur ou appareil non identifié" };
+  if (d.kind === "other") return { reason: "obturateur", detail: "Appareil non identifié" };
   return undefined;
 }
 
@@ -227,7 +235,7 @@ export function leftoversFrom(project: Project, target: Panel, source: Panel): L
     });
   }
   for (const { device: d, row } of locatedDevices(source)) {
-    if (used.has(d.id)) continue;
+    if (used.has(d.id) || d.kind === "blank") continue;
     const label = `${deviceLabel(d)}${d.label ? ` — ${d.label}` : ""}${d.brand && d.brand !== "Générique" ? ` (${d.brand})` : ""}`;
     const bad = unusableReason(d);
     if (bad) {
@@ -241,7 +249,19 @@ export function leftoversFrom(project: Project, target: Panel, source: Panel): L
     } else if (sameSpec.length) {
       out.push({ device: d, row, label, reason: "surplus", detail: "En surplus : le nouveau tableau en utilise moins" });
     } else if (lines.some((l) => l.kind === d.kind)) {
-      out.push({ device: d, row, label, reason: "remplace", detail: "Remplacé par un modèle plus adapté (calibre, type ou courbe différent)" });
+      const kin = lines.filter((l) => l.kind === d.kind);
+      const sameRating = kin.filter((l) => l.key.split("|")[1] === String(d.rating ?? ""));
+      const instead = [...new Set((sameRating.length ? sameRating : kin).map((l) => l.label))];
+      out.push({
+        device: d,
+        row,
+        label,
+        reason: "remplace",
+        detail:
+          sameRating.length || d.kind === "rcd"
+            ? `Remplacé : le nouveau tableau utilise ${instead.slice(0, 2).join(" et ")}${instead.length > 2 ? "…" : ""}`
+            : `Remplacé : plus aucun ${d.rating} A de ce type dans le nouveau tableau`,
+      });
     } else {
       out.push({ device: d, row, label, reason: "inutile", detail: "Plus nécessaire dans le nouveau tableau" });
     }

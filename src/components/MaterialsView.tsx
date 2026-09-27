@@ -49,63 +49,38 @@ const LEFTOVER_TONE: Record<Leftover["reason"], { tone: string; label: string }>
   obturateur: { tone: "conseil", label: "Sans usage" },
 };
 
-/** Matériel de l'ancien tableau que le nouveau ne reprend pas. */
-function Leftovers({ items, reperes }: { items: Leftover[]; reperes: Map<string, string> }) {
-  const recyclable = items.filter((l) => l.device && ["remplace", "surplus", "inutile", "autre-marque"].includes(l.reason)).length;
+/** Une ligne « non réutilisé » : un appareil de l'ancien tableau que le nouveau ne reprend pas. */
+function LeftoverRow({ item, repere }: { item: Leftover; repere?: string }) {
+  const tone = LEFTOVER_TONE[item.reason];
+  const d = item.device;
   return (
-    <section className="card">
-      <div className="card-head">
-        <div>
-          <h2>Matériel de l'ancien tableau non réutilisé</h2>
-          <p className="muted small">
-            {items.length === 0
-              ? "Tout le matériel de l'ancien tableau est repris dans le nouveau."
-              : `${items.length} élément${items.length > 1 ? "s" : ""} retiré${items.length > 1 ? "s" : ""}${recyclable ? `, dont ${recyclable} en bon état à garder en dépannage ou à revendre` : ""}.`}
-          </p>
+    <tr data-leftover="true">
+      <td />
+      <td>
+        <div className="product">
+          <span className="product-thumb">{d ? <DeviceArt device={d} view="front" scale={d.modules > 2 ? 0.66 : 0.95} /> : <EnclosureThumb />}</span>
+          <span style={{ minWidth: 0 }}>
+            <span className="overline" style={{ fontSize: "0.66rem" }}>
+              Ancien tableau{repere ? ` · ${repere}` : ""}
+              {item.row !== undefined ? ` · rangée ${item.row + 1}` : ""}
+            </span>
+            <b>{item.label}</b>
+          </span>
         </div>
-      </div>
-      {items.length > 0 && (
-        <div className="table-wrap">
-          <table className="data">
-            <thead>
-              <tr>
-                <th>Appareil</th>
-                <th>Repère</th>
-                <th>Rangée</th>
-                <th>Raison</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((l, i) => {
-                const tone = LEFTOVER_TONE[l.reason];
-                return (
-                  <tr key={l.device?.id ?? `enc-${i}`}>
-                    <td>
-                      <div className="product">
-                        <span className="product-thumb">{l.device ? <DeviceArt device={l.device} view="front" scale={l.device.modules > 2 ? 0.66 : 0.95} /> : <EnclosureThumb />}</span>
-                        <b>{l.label}</b>
-                      </div>
-                    </td>
-                    <td className="mono">{l.device ? reperes.get(l.device.id) ?? "—" : "—"}</td>
-                    <td>{l.row === undefined ? "—" : `Rangée ${l.row + 1}`}</td>
-                    <td>
-                      <span className="badge" data-tone={tone.tone}>
-                        {tone.label}
-                      </span>
-                      <div className="muted xsmall" style={{ marginTop: 4 }}>
-                        {l.detail}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </section>
+      </td>
+      <td colSpan={7}>
+        <span className="badge" data-tone={tone.tone}>
+          {tone.label}
+        </span>
+        <span className="muted xsmall" style={{ marginLeft: 8 }}>
+          {item.detail}
+        </span>
+      </td>
+    </tr>
   );
 }
+
+type Filter = "buy" | "stock" | "left";
 
 export function MaterialsView() {
   const project = useStore((s) => s.project);
@@ -123,10 +98,19 @@ export function MaterialsView() {
   const leftovers = useMemo(() => (target && source ? leftoversFrom(project, target, source) : []), [project, target, source]);
   const reperes = useMemo(() => (source ? repereMap(source) : new Map<string, string>()), [source]);
   const totals = bomTotals(lines);
-  const [filter, setFilter] = useState<"all" | "buy" | "stock">("all");
+  const [filters, setFilters] = useState<Set<Filter>>(() => new Set<Filter>(["buy", "stock"]));
+  const toggle = (f: Filter) =>
+    setFilters((cur) => {
+      const next = new Set(cur);
+      if (next.has(f)) next.delete(f);
+      else next.add(f);
+      return next;
+    });
   const toBuyLines = lines.filter((l) => l.toBuy > 0);
   const bought = toBuyLines.filter((l) => project.inventory[l.key]?.bought).length;
-  const shown = lines.filter((l) => (filter === "buy" ? l.toBuy > 0 : filter === "stock" ? l.toBuy === 0 : true));
+  const none = filters.size === 0;
+  const shown = lines.filter((l) => none || (l.toBuy > 0 ? filters.has("buy") : filters.has("stock")));
+  const shownLeftovers = none || filters.has("left") ? leftovers : [];
 
   if (!target) {
     return (
@@ -245,16 +229,24 @@ export function MaterialsView() {
             </div>
           </div>
           <div className="board-bar" style={{ gap: 16 }}>
-            <div className="segmented" role="group" aria-label="Filtrer">
-              <button type="button" aria-pressed={filter === "all"} onClick={() => setFilter("all")}>
-                Tout <span className="count">{lines.length}</span>
-              </button>
-              <button type="button" aria-pressed={filter === "buy"} onClick={() => setFilter("buy")}>
+            <div className="filter-pills" role="group" aria-label="Filtrer">
+              <button type="button" data-tone="buy" aria-pressed={filters.has("buy")} onClick={() => toggle("buy")}>
                 À acheter <span className="count">{toBuyLines.length}</span>
               </button>
-              <button type="button" aria-pressed={filter === "stock"} onClick={() => setFilter("stock")}>
+              <button type="button" data-tone="stock" aria-pressed={filters.has("stock")} onClick={() => toggle("stock")}>
                 Déjà en stock <span className="count">{lines.length - toBuyLines.length}</span>
               </button>
+              {source && (
+                <button
+                  type="button"
+                  data-tone="left"
+                  aria-pressed={filters.has("left")}
+                  onClick={() => toggle("left")}
+                  title="Le matériel de l'ancien tableau que le nouveau ne reprend pas"
+                >
+                  Non réutilisé <span className="count">{leftovers.length}</span>
+                </button>
+              )}
             </div>
             <span className="spacer" />
             {toBuyLines.length > 0 && (
@@ -359,6 +351,14 @@ export function MaterialsView() {
                     </td>
                   </tr>
                 ))}
+                {shownLeftovers.length > 0 && shown.length > 0 && (
+                  <tr className="group-row">
+                    <td colSpan={9}>Non réutilisé — reste de l'ancien tableau</td>
+                  </tr>
+                )}
+                {shownLeftovers.map((item, i) => (
+                  <LeftoverRow key={item.device?.id ?? `enc-${i}`} item={item} repere={item.device ? reperes.get(item.device.id) : undefined} />
+                ))}
               </tbody>
               <tfoot>
                 <tr>
@@ -374,7 +374,6 @@ export function MaterialsView() {
             </table>
           </div>
         </section>
-        {source && <Leftovers items={leftovers} reperes={reperes} />}
         <p className="muted xsmall">
           Prix indicatifs, modifiables : ils varient selon les magasins et les promotions. Pensez aussi aux fournitures hors tableau : fils de liaison 10 mm²,
           câbles des circuits à recâbler, étiquettes.

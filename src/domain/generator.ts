@@ -32,6 +32,24 @@ interface Planned {
   circuit: Circuit;
   rating: number;
   label?: string;
+  /** Télérupteurs, contacteurs, minuteries… commandés par ce circuit, repris à sa suite. */
+  aux?: Device[];
+}
+
+const AUX_KINDS = new Set<Device["kind"]>(["teleruptor", "contactor", "timer"]);
+
+/** Les auxiliaires placés juste après chaque départ dans le tableau existant (un télérupteur suit son disjoncteur). */
+function auxiliariesOf(source: Panel): Map<string, Device[]> {
+  const out = new Map<string, Device[]>();
+  for (const row of source.rows) {
+    let owner: Device | undefined;
+    for (const d of row) {
+      if (isCircuitDevice(d)) owner = d;
+      else if (d.kind === "rcd" || d.kind === "spd") owner = undefined;
+      else if (AUX_KINDS.has(d.kind) && owner && d.condition !== "HS") out.set(owner.id, [...(out.get(owner.id) ?? []), d]);
+    }
+  }
+  return out;
 }
 
 const GROUP_ORDER: Record<string, number> = { eclairage: 0, prises: 1, autre: 2, specialise: 3, chauffage: 4 };
@@ -272,7 +290,10 @@ export function generateCompliantPanel(
     notes.push(`${undescribed.length} départ(s) sans description ignoré(s) : décrivez-les dans le tableau existant puis régénérez.`);
   }
 
-  let planned = sources.filter((d) => d.circuit).flatMap((d) => planCircuit(d, notes));
+  const auxiliaries = auxiliariesOf(source);
+  let planned = sources
+    .filter((d) => d.circuit)
+    .flatMap((d) => planCircuit(d, notes).map((p, i) => (i === 0 && auxiliaries.has(d.id) ? { ...p, aux: auxiliaries.get(d.id) } : p)));
   planned = addMissingCircuits(planned, house, notes);
 
   const ev = planned.filter((p) => p.circuit.usage === "irve_prise" || p.circuit.usage === "irve_borne");
@@ -316,7 +337,21 @@ export function generateCompliantPanel(
           circuit: p.circuit,
         }),
       );
-      if (p.circuit.usage === "chauffe_eau" && house.offPeak) {
+      for (const a of p.aux ?? []) {
+        const item = pick(brand, { kind: a.kind, rating: a.rating }, custom);
+        row.push(
+          deviceFrom(item, {
+            kind: a.kind,
+            modules: a.modules,
+            rating: a.rating,
+            poles: a.poles,
+            label: a.label,
+            labelIcon: a.labelIcon,
+            circuit: a.circuit,
+          }),
+        );
+      }
+      if (p.circuit.usage === "chauffe_eau" && house.offPeak && !p.aux?.some((a) => a.kind === "contactor")) {
         const item = pick(brand, { kind: "contactor" }, custom);
         row.push(deviceFrom(item, { kind: "contactor", modules: 1, rating: 20, label: "Contacteur HC chauffe-eau" }));
       }
