@@ -1,3 +1,4 @@
+import { syncCatalog } from "../domain/catalog";
 import type { Project } from "../domain/types";
 import { type DbDoc, getDb, getDownloads, getUser } from "./claude-runtime";
 import { useStore } from "./store";
@@ -14,11 +15,14 @@ function isProject(value: unknown): value is Project {
 
 /** Complète un projet importé avec les champs ajoutés depuis. */
 export function normalizeProject(p: Project): Project {
+  const customCatalog = p.customCatalog ?? [];
   return {
     ...p,
+    // Répare les références restées d'un ancien calibre (versions précédentes).
+    panels: p.panels.map((panel) => ({ ...panel, rows: panel.rows.map((row) => row.map((d) => syncCatalog(d, customCatalog))) })),
     inventory: p.inventory ?? {},
     catalogOverrides: p.catalogOverrides ?? {},
-    customCatalog: p.customCatalog ?? [],
+    customCatalog,
     chat: p.chat ?? [],
     allowCrossBrandReuse: p.allowCrossBrandReuse ?? false,
     activePanelId: p.panels.some((x) => x.id === p.activePanelId) ? p.activePanelId : p.panels[0].id,

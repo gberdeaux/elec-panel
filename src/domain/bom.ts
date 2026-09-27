@@ -1,5 +1,5 @@
 /** Nomenclature du nouveau tableau, réemploi de l'existant et liste d'achat. */
-import { type CatalogItem, type CatalogKind, KIND_LABEL, catalogById, findCatalogItem } from "./catalog";
+import { type CatalogItem, type CatalogKind, KIND_LABEL, catalogById, catalogItemFor, findCatalogItem, refFor } from "./catalog";
 import { MIN_BREAKING_CAPACITY } from "./norm";
 import { deviceTitle, locatedDevices, rowModules } from "./panel";
 import type { Brand, Device, Panel, Project } from "./types";
@@ -115,12 +115,12 @@ function computeBomDetailed(project: Project, target: Panel, source?: Panel): { 
   // Appareils
   for (const { device } of locatedDevices(target)) {
     if (device.kind === "blank") continue;
-    const item = catalogById(device.catalogId, custom);
+    const item = catalogItemFor(device, custom);
     const key = `${specKey(device)}|${device.brand ?? ""}`;
     addLine(key, device.kind, deviceLabel(device, item), 1, {
       brand: device.brand,
       catalogId: item?.id,
-      ref: refOf(item?.id, device.ref ?? item?.ref),
+      ref: refOf(item?.id, refFor(device, custom)),
     });
   }
 

@@ -3,7 +3,7 @@
  * Les références et prix sont indicatifs (prix constatés en grande surface de bricolage type
  * Leroy Merlin) : ils sont modifiables dans l'application et doivent être vérifiés avant achat.
  */
-import type { Brand, Curve, DeviceKind, Poles, RcdType } from "./types";
+import type { Brand, Curve, Device, DeviceKind, Poles, RcdType } from "./types";
 
 export type CatalogKind = DeviceKind | "enclosure" | "comb" | "blankStrip";
 
@@ -53,8 +53,12 @@ const PROFILES: BrandProfile[] = [
     priceFactor: 1.05,
     enclosureRef: (rows, modules) => `R9H${modules}40${rows}`,
     mcbRef: (rating) => (rating <= 32 ? `R9PFC6${pad2(rating)}` : undefined),
-    rcdRef: (rating, type) =>
-      type === "AC" && (rating === 40 || rating === 63) ? `R9PRC2${rating}` : undefined,
+    rcdRef: (rating, type) => {
+      if (rating !== 40 && rating !== 63) return undefined;
+      if (type === "AC") return `R9PRC2${rating}`;
+      if (type === "A") return `R9PRA2${rating}`;
+      return undefined;
+    },
     combRef: (modules) => `R9PXH2${modules}`,
     breakingCapacity: 3000,
     hasTypeB: false,
@@ -443,6 +447,43 @@ export function findCatalogItem(brand: Brand, q: DeviceQuery, custom: CatalogIte
       (q.modulesPerRow === undefined || c.modulesPerRow === q.modulesPerRow) &&
       (q.rows === undefined || c.rows === q.rows),
   );
+}
+
+/**
+ * L'article du catalogue qui correspond vraiment à un appareil. Un article resté d'un ancien réglage
+ * (calibre, type, courbe ou marque changés depuis) est ignoré au profit du bon article de la marque.
+ */
+export function catalogItemFor(d: Device, custom: CatalogItem[] = []): CatalogItem | undefined {
+  const fits = (c?: CatalogItem) =>
+    c &&
+    c.kind === d.kind &&
+    (!d.brand || c.brand === d.brand) &&
+    (c.rating === undefined || c.rating === d.rating) &&
+    (c.rcdType === undefined || d.rcdType === undefined || c.rcdType === d.rcdType) &&
+    (c.curve === undefined || d.curve === undefined || c.curve === d.curve)
+      ? c
+      : undefined;
+  const byRef = d.ref ? allCatalog(custom).find((c) => c.ref === d.ref) : undefined;
+  return (
+    fits(catalogById(d.catalogId, custom)) ??
+    fits(byRef) ??
+    (d.brand ? findCatalogItem(d.brand, { kind: d.kind, rating: d.rating, rcdType: d.rcdType, curve: d.curve }, custom) : undefined)
+  );
+}
+
+/** Référence à acheter : celle de l'article correspondant, ou une référence saisie à la main absente du catalogue. */
+export function refFor(d: Device, custom: CatalogItem[] = []): string | undefined {
+  const item = catalogItemFor(d, custom);
+  if (item) return item.ref;
+  return d.ref && !allCatalog(custom).some((c) => c.ref === d.ref) ? d.ref : undefined;
+}
+
+/** Réaligne l'article et la référence d'un appareil sur ses caractéristiques actuelles. */
+export function syncCatalog(d: Device, custom: CatalogItem[] = []): Device {
+  const item = catalogItemFor(d, custom);
+  const ref = refFor(d, custom);
+  if (item?.id === d.catalogId && ref === d.ref) return d;
+  return { ...d, catalogId: item?.id, ref };
 }
 
 export const KIND_LABEL: Record<CatalogKind, string> = {

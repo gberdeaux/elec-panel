@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { produce } from "immer";
-import type { CatalogItem } from "../domain/catalog";
+import { type CatalogItem, syncCatalog } from "../domain/catalog";
 import { type GenerateOptions, generateCompliantPanel, rebrandPanel } from "../domain/generator";
 import { findDevice, newId } from "../domain/panel";
 import { emptyPanel, sampleProject } from "../domain/sample";
@@ -236,7 +236,15 @@ export const useStore = create<State>((set, get) => {
         const p = panelOf(d, panelId);
         if (!p) return;
         const loc = findDevice(p as Panel, deviceId);
-        if (loc) Object.assign(p.rows[loc.row][loc.index], patch);
+        if (!loc) return;
+        const device = p.rows[loc.row][loc.index];
+        Object.assign(device, patch);
+        // Un calibre, un type ou une marque changés : l'article et la référence suivent.
+        if (["kind", "rating", "rcdType", "curve", "brand"].some((k) => k in patch) && !("catalogId" in patch)) {
+          const synced = syncCatalog(device as Device, d.customCatalog);
+          device.catalogId = synced.catalogId;
+          device.ref = synced.ref;
+        }
       }, `device:${deviceId}:${Object.keys(patch).join()}`),
     removeDevice: (panelId, deviceId) => {
       commit((d) => {

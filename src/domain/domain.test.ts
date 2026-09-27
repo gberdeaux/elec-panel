@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { analyzePanel, rcdLoad, rcdLoadReport, rowSummaries, suitableRcdRating, surgeProtection, verdict } from "./analysis";
 import { bomTotals, computeBom, isReusable, leftoversFrom } from "./bom";
+import { refFor, syncCatalog } from "./catalog";
 import { generateCompliantPanel, planCircuit } from "./generator";
 import { expectedProtection, maxPointsFor, maxRatingForSection, recommendedRating } from "./norm";
 import { circuitsByRcd, newId, protectionMap } from "./panel";
@@ -183,6 +184,36 @@ describe("génération du tableau conforme", () => {
     expect(rcbo?.rcdType).toBe("A");
     const bad = analyzePanel(generated, house).filter((f) => f.severity === "nonconforme" || f.severity === "danger");
     expect(bad).toEqual([]);
+  });
+});
+
+describe("références du catalogue", () => {
+  const rcd = (patch: Partial<Device>): Device => ({ id: newId(), kind: "rcd", modules: 2, sensitivity: 30, brand: "Schneider", condition: "bon", ...patch });
+
+  it("ignore une référence restée d'un ancien calibre", () => {
+    // Passé de 40 A à 63 A dans l'inspecteur : l'ancienne référence 40 A ne doit plus être proposée à l'achat.
+    const stale = rcd({ rating: 63, rcdType: "AC", poles: "2P", ref: "R9PRC240" });
+    expect(refFor(stale)).toBe("R9PRC263");
+    expect(syncCatalog(stale).catalogId).toBe("schneider-rcd-ac-63");
+    const mcb: Device = { id: newId(), kind: "mcb", modules: 1, rating: 20, curve: "C", brand: "Schneider", catalogId: "schneider-mcb-c6", ref: "R9PFC606", condition: "bon" };
+    expect(syncCatalog(mcb)).toMatchObject({ catalogId: "schneider-mcb-c20", ref: "R9PFC620" });
+  });
+
+  it("garde une référence saisie à la main absente du catalogue", () => {
+    expect(refFor(rcd({ rating: 40, rcdType: "A", brand: undefined, ref: "MA-REF-1" }))).toBe("MA-REF-1");
+  });
+
+  it("donne la référence Schneider des différentiels type A", () => {
+    expect(refFor(rcd({ rating: 40, rcdType: "A" }))).toBe("R9PRA240");
+  });
+
+  it("réemploie les différentiels relevés sans pôles ni référence", () => {
+    const project = sampleProject();
+    const source: Panel = { ...project.panels[0], rows: [[rcd({ rating: 40, rcdType: "A" }), rcd({ rating: 40, rcdType: "AC" })]] };
+    const target: Panel = { ...project.panels[0], id: "t", role: "new", rows: [[rcd({ rating: 40, rcdType: "A", poles: "2P", catalogId: "schneider-rcd-a-40" }), rcd({ rating: 40, rcdType: "AC", poles: "2P", ref: "R9PRC240" })]] };
+    const lines = computeBom({ ...project, allowCrossBrandReuse: false }, target, source).filter((l) => l.kind === "rcd");
+    expect(lines.map((l) => l.ref).sort()).toEqual(["R9PRA240", "R9PRC240"]);
+    expect(lines.every((l) => l.toBuy === 0)).toBe(true);
   });
 });
 
